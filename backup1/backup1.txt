@@ -1,0 +1,21 @@
+  // Stückprovisionen - HIER kannst du deine Provisionen eintragen
+  const [commissions, setCommissions] = useState({
+    // KIP Provisionen (Neukunde vs Upsell)
+    kip50New: '80',       // KIP 50 Neukunde
+    kip50Upsell: '4',    // KIP 50 Upsell
+    kip100New: '125',      // KIP 100 Neukunde  
+    kip100Upsell: '58',   // KIP 100 Upsell
+    kip250New: '160',      // KIP 250 Neukunde
+    kip250Upsell: '64',   // KIP 250 Upsell
+    kip500New: '180',     // KIP 500 Neukunde
+    kip500Upsell: '70',   // KIP 500 Upsell
+    kip1000New: '205',    // KIP 1000 Neukunde (175 + 30 KAS)
+    kip1000Upsell: '85', // KIP 1000 Upsell
+    
+    // Digi Provisionen
+    digiHome: '65',           // Digi Home Neukunde
+    digiSound: '70',          // Digi Sound Neukunde
+    digiHomeNetflix: '70',    // Digi Home Netflix Neukunde
+    digiSoundNetflix: '80',   // Digi Sound Netflix Neukunde
+    digiHomeNet1: '15',   // Digi Sound Netflix Neukunde
+    digiHomeNet2: '15',   // Digi Sound Netflix Neukunde

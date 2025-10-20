@@ -1,0 +1,629 @@
+import React, { useState, useEffect } from 'react';
+import { Calculator, Plus, Minus, Euro, Phone, Tv, Smartphone } from 'lucide-react';
+
+const VodafoneCalculator = () => {
+  const [customerType, setCustomerType] = useState('new');
+  const [currentMonthlyPrice, setCurrentMonthlyPrice] = useState('');
+  const [useDowngradePrices, setUseDowngradePrices] = useState(false);
+  
+  const [selectedProducts, setSelectedProducts] = useState({
+    kipMain: '',
+    kipYear2: '',
+    digi: '',
+    nets: [],
+    mobileHK: '',
+    mobileZK: [],
+    redData: false
+  });
+  
+  const [calculation, setCalculation] = useState({
+    monthlyTotal: 0,
+    twoYearTotal: 0,
+    monthlySavings: 0,
+    twoYearSavings: 0
+  });
+
+  // Produktdaten
+  const products = {
+    kip: {
+      50: { name: 'KIP 50', price: 39.99, newCustomerPrice: 9.99, downgradePriceMitarbeiter: 19.99 },
+      100: { name: 'KIP 100', price: 44.99, newCustomerPrice: 19.99, downgradePriceMitarbeiter: 29.99 },
+      250: { name: 'KIP 250', price: 49.99, newCustomerPrice: 19.99, downgradePriceMitarbeiter: 32.99 },
+      500: { name: 'KIP 500', price: 54.99, newCustomerPrice: 19.99, downgradePriceMitarbeiter: 37.99 },
+      1000: { name: 'KIP 1000', price: 64.99, newCustomerPrice: 19.99, downgradePriceMitarbeiter: 39.99 }
+    },
+    digi: {
+      home: { name: 'Digi Home', priceMonths1to6: 9.99, priceMonths7to24: 14.99 },
+      sound: { name: 'Digi Sound', priceMonths1to6: 14.99, priceMonths7to24: 19.99 },
+      homeVfPremium: { name: 'Digi Home VF Premium', priceMonths1to6: 14.99, priceMonths7to24: 19.99 },
+      soundVfPremium: { name: 'Digi Sound VF Premium', priceMonths1to6: 19.99, priceMonths7to24: 24.99 },
+      homeNetflix: { name: 'Digi Home mit Netflix', priceMonths1to6: 19.99, priceMonths7to24: 25.99 },
+      soundNetflix: { name: 'Digi Sound mit Netflix', priceMonths1to6: 24.99, priceMonths7to24: 30.99 }
+    },
+    mobileHK: {
+      XS: { name: 'Mobile HK XS', price: 29.99, discount: 6 },
+      S: { name: 'Mobile HK S', price: 39.99, discount: 8 },
+      M: { name: 'Mobile HK M', price: 49.99, discount: 10 },
+      L: { name: 'Mobile HK L', price: 59.99, discount: 12 },
+      XL: { name: 'Mobile HK XL', price: 79.99, discount: 16 }
+    },
+    mobileZK: {
+      S: { name: 'Mobile ZK S', price: 9.99 },
+      M: { name: 'Mobile ZK M', price: 19.99 },
+      L: { name: 'Mobile ZK L', price: 29.99 },
+      XL: { name: 'Mobile ZK XL', price: 39.99 }
+    },
+    nets: {
+      home: { name: 'Net Home', price: 5 },
+      sound: { name: 'Net Sound', price: 10 }
+    },
+    redData: { name: 'RedData', price: 5 }
+  };
+
+    const addMobileZK = () => {
+    setSelectedProducts(prev => ({
+      ...prev,
+      mobileZK: [...prev.mobileZK, 'S']
+    }));
+  };
+
+  const removeMobileZK = (index) => {
+    setSelectedProducts(prev => ({
+      ...prev,
+      mobileZK: prev.mobileZK.filter((_, i) => i !== index)
+    }));
+  };
+
+  const updateMobileZK = (index, value) => {
+    setSelectedProducts(prev => ({
+      ...prev,
+      mobileZK: prev.mobileZK.map((item, i) => i === index ? value : item)
+    }));
+  };
+
+  const addNet = () => {
+    if (selectedProducts.nets.length < 2) {
+      setSelectedProducts(prev => ({
+        ...prev,
+        nets: [...prev.nets, 'home']
+      }));
+    }
+  };
+
+  const removeNet = (index) => {
+    setSelectedProducts(prev => ({
+      ...prev,
+      nets: prev.nets.filter((_, i) => i !== index)
+    }));
+  };
+
+  const updateNet = (index, value) => {
+    setSelectedProducts(prev => {
+      const newNets = [...prev.nets];
+      newNets[index] = value;
+      // Sicherstellen, dass beide Nets vom gleichen Typ sind
+      if (newNets.length === 2) {
+        newNets[1] = value;
+      }
+      return {
+        ...prev,
+        nets: newNets
+      };
+    });
+  };
+
+  const calculatePrices = () => {
+    let monthlyTotal = 0;
+    let twoYearTotal = 0;
+    let hasKIP = false;
+
+    // KIP Berechnung
+    if (selectedProducts.kipMain) {
+      hasKIP = true;
+      const kipMainProduct = products.kip[selectedProducts.kipMain];
+      const kipYear2Product = products.kip[selectedProducts.kipYear2] || kipMainProduct;
+      
+      if (customerType === 'new') {
+        const months1to12 = kipMainProduct.newCustomerPrice * 12;
+        
+        // Jahr 2 Preisberechnung - prüfen ob Mitarbeiter-Downgrade oder normaler Preis
+        let year2MonthlyPrice;
+        if (useDowngradePrices) {
+          // Wenn Downgrade gewählt ist, verwende den speziellen Mitarbeiterpreis
+          const downgradeTarif = selectedProducts.kipYear2 || selectedProducts.kipMain;
+          year2MonthlyPrice = products.kip[downgradeTarif].downgradePriceMitarbeiter;
+        } else {
+          // Normaler Preis für Jahr 2
+          year2MonthlyPrice = kipYear2Product.price;
+        }
+        
+        const months13to24 = year2MonthlyPrice * 12;
+        twoYearTotal += months1to12 + months13to24;
+        monthlyTotal += (months1to12 + months13to24) / 24;
+      } else {
+        // Bei Bestandskunden nur Jahr 2 Preis verwenden
+        let year2MonthlyPrice;
+        if (useDowngradePrices) {
+          const downgradeTarif = selectedProducts.kipYear2 || selectedProducts.kipMain;
+          year2MonthlyPrice = products.kip[downgradeTarif].downgradePriceMitarbeiter;
+        } else {
+          year2MonthlyPrice = kipYear2Product.price;
+        }
+        
+        twoYearTotal += year2MonthlyPrice * 24;
+        monthlyTotal += year2MonthlyPrice;
+      }
+    }
+
+    // Digi Berechnung
+    if (selectedProducts.digi) {
+      const digiProduct = products.digi[selectedProducts.digi];
+      const months1to6 = digiProduct.priceMonths1to6 * 6;
+      const months7to24 = digiProduct.priceMonths7to24 * 18;
+      
+      let digiDiscount = 0;
+      if (hasKIP) {
+        digiDiscount = 5 * 24;
+      }
+      
+      twoYearTotal += months1to6 + months7to24 - digiDiscount;
+      monthlyTotal += (months1to6 + months7to24 - digiDiscount) / 24;
+    }
+
+    // Mobile HK Berechnung
+    if (selectedProducts.mobileHK) {
+      const mobileProduct = products.mobileHK[selectedProducts.mobileHK];
+      let mobilePrice = mobileProduct.price;
+      
+      mobilePrice -= mobileProduct.discount;
+      
+      if (hasKIP) {
+        mobilePrice -= 10;
+      }
+      
+      twoYearTotal += mobilePrice * 24;
+      monthlyTotal += mobilePrice;
+    }
+
+    // Net Berechnung
+    selectedProducts.nets.forEach(netType => {
+      const netProduct = products.nets[netType];
+      twoYearTotal += netProduct.price * 24;
+      monthlyTotal += netProduct.price;
+    });
+
+    // Mobile ZK Berechnung
+    selectedProducts.mobileZK.forEach(zkType => {
+      const zkProduct = products.mobileZK[zkType];
+      twoYearTotal += zkProduct.price * 24;
+      monthlyTotal += zkProduct.price;
+    });
+
+    // RedData
+    if (selectedProducts.redData) {
+      twoYearTotal += products.redData.price * 24;
+      monthlyTotal += products.redData.price;
+    }
+
+    // Berechnung der Ersparnisse - Fehlerbehebung: nur berechnen wenn Produkte gewählt sind
+    const currentMonthly = parseFloat(currentMonthlyPrice) || 0;
+    const currentTwoYear = currentMonthly * 24;
+    
+    // Prüfen ob überhaupt Produkte gewählt sind
+    const hasProducts = selectedProducts.kipMain || selectedProducts.digi || selectedProducts.mobileHK || 
+                       selectedProducts.mobileZK.length > 0 || selectedProducts.nets.length > 0 || selectedProducts.redData;
+    
+    const monthlySavings = hasProducts ? currentMonthly - monthlyTotal : 0;
+    const twoYearSavings = hasProducts ? currentTwoYear - twoYearTotal : 0;
+
+    setCalculation({
+      monthlyTotal: Math.round(monthlyTotal * 100) / 100,
+      twoYearTotal: Math.round(twoYearTotal * 100) / 100,
+      monthlySavings: Math.round(monthlySavings * 100) / 100,
+      twoYearSavings: Math.round(twoYearSavings * 100) / 100
+    });
+  };
+
+  useEffect(() => {
+    calculatePrices();
+  }, [selectedProducts, customerType, currentMonthlyPrice, useDowngradePrices]);
+
+  const resetCalculator = () => {
+    setSelectedProducts({
+      kipMain: '',
+      kipYear2: '',
+      digi: '',
+      nets: [],
+      mobileHK: '',
+      mobileZK: [],
+      redData: false
+    });
+    setCurrentMonthlyPrice('');
+    setUseDowngradePrices(false);
+  };
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-red-50 to-gray-100 py-4 px-4">
+      <div className="max-w-4xl mx-auto">
+        <div className="mb-6 text-center">
+          <h1 className="text-3xl font-bold text-gray-800 flex items-center justify-center gap-2">
+            <Calculator className="text-red-600" />
+            Pencil-Selling Assistant
+          </h1>
+          <p className="text-gray-600 mt-2">Berechnung von Angeboten für Kunden</p>
+        </div>
+
+        <div className="grid lg:grid-cols-2 gap-6">
+          {/* Eingaben */}
+          <div className="space-y-4">
+            {/* Kundentyp */}
+            <div className="bg-white p-4 rounded-lg shadow">
+              <h2 className="text-lg font-semibold mb-3 text-gray-800">Kundentyp</h2>
+              <div className="flex gap-4">
+                <label className="flex items-center cursor-pointer">
+                  <input
+                    type="radio"
+                    name="customerType"
+                    value="new"
+                    checked={customerType === 'new'}
+                    onChange={(e) => setCustomerType(e.target.value)}
+                    className="mr-2 text-red-600 focus:ring-red-500"
+                  />
+                  <span className="text-gray-700">Neukunde</span>
+                </label>
+                <label className="flex items-center cursor-pointer">
+                  <input
+                    type="radio"
+                    name="customerType"
+                    value="existing"
+                    checked={customerType === 'existing'}
+                    onChange={(e) => setCustomerType(e.target.value)}
+                    className="mr-2 text-red-600 focus:ring-red-500"
+                  />
+                  <span className="text-gray-700">Bestandskunde</span>
+                </label>
+              </div>
+            </div>
+
+            {/* Aktueller Preis */}
+            <div className="bg-white p-4 rounded-lg shadow">
+              <h2 className="text-lg font-semibold mb-3 text-gray-800">Aktueller Preis (optional)</h2>
+              <div className="flex items-center gap-2">
+                <Euro className="text-gray-500" size={20} />
+                <input
+                  type="number"
+                  value={currentMonthlyPrice}
+                  onChange={(e) => setCurrentMonthlyPrice(e.target.value)}
+                  placeholder="Aktueller monatlicher Preis"
+                  className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                  step="0.01"
+                />
+              </div>
+            </div>
+
+            {/* KIP */}
+            <div className="bg-white p-4 rounded-lg shadow">
+              <h2 className="text-lg font-semibold mb-3 flex items-center gap-2 text-gray-800">
+                <Phone className="text-red-600" />
+                KIP (Internet, TV, Telefon)
+              </h2>
+              
+              {/* Downgrade-Tarife Checkbox */}
+              <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={useDowngradePrices}
+                    onChange={(e) => setUseDowngradePrices(e.target.checked)}
+                    className="w-5 h-5 text-blue-600 focus:ring-blue-500 rounded"
+                  />
+                  <div>
+                    <span className="text-sm font-semibold text-blue-800">Downgrade-Preise verwenden</span>
+                    <div className="text-xs text-blue-600">Spezielle Preise ab dem 13. Monat für Kunden</div>
+                  </div>
+                </label>
+              </div>
+              
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-sm font-medium mb-2 text-gray-700">Jahr 1 (Monate 1-12)</label>
+                  <select
+                    value={selectedProducts.kipMain}
+                    onChange={(e) => setSelectedProducts(prev => ({ ...prev, kipMain: e.target.value }))}
+                    className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                  >
+                    <option value="">Kein KIP</option>
+                    {Object.entries(products.kip).map(([key, product]) => (
+                      <option key={key} value={key}>
+                        {product.name} - {customerType === 'new' ? product.newCustomerPrice : product.price}€/Monat
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                
+                {selectedProducts.kipMain && (
+                  <div>
+                    <label className="block text-sm font-medium mb-2 text-gray-700">
+                      Jahr 2 (Monate 13-24) - Wechselgarantie
+                      {useDowngradePrices && (
+                        <span className="text-blue-600 text-xs ml-2">(Downgrade-Preise aktiv)</span>
+                      )}
+                    </label>
+                    <select
+                      value={selectedProducts.kipYear2}
+                      onChange={(e) => setSelectedProducts(prev => ({ ...prev, kipYear2: e.target.value }))}
+                      className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                    >
+                      <option value="">Gleicher Tarif wie Jahr 1</option>
+                      {Object.entries(products.kip).filter(([key]) => {
+                        const speed = parseInt(key);
+                        const mainSpeed = parseInt(selectedProducts.kipMain);
+                        return speed === 100 || speed === 250 || speed === 500 || (speed === 1000 && mainSpeed === 1000);
+                      }).map(([key, product]) => {
+                        const displayPrice = useDowngradePrices ? product.downgradePriceMitarbeiter : product.price;
+                        return (
+                          <option key={key} value={key}>
+                            {product.name} - {displayPrice}€/Monat
+                            {useDowngradePrices && ` (statt ${product.price}€)`}
+                          </option>
+                        );
+                      })}
+                    </select>
+                    
+                    {/* Preisvergleich anzeigen wenn Downgrade aktiv */}
+                    {/* {useDowngradePrices && selectedProducts.kipMain && (
+                      <div className="mt-2 p-2 bg-green-100 border border-green-300 rounded text-xs text-green-700">
+                        💡 Jahr 2 Ersparnis durch Mitarbeiter-Tarif: 
+                        {(() => {
+                          const selectedTarif = selectedProducts.kipYear2 || selectedProducts.kipMain;
+                          const normalPrice = products.kip[selectedTarif].price;
+                          const downgradePrice = products.kip[selectedTarif].downgradePriceMitarbeiter;
+                          const monthlySavings = normalPrice - downgradePrice;
+                          const yearlySavings = monthlySavings * 12;
+                          return ` ${monthlySavings.toFixed(2)}€/Monat = ${yearlySavings.toFixed(2)}€/Jahr`;
+                        })()}
+                      </div>
+                    )} */}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Digi */}
+            <div className="bg-white p-4 rounded-lg shadow">
+              <h2 className="text-lg font-semibold mb-3 flex items-center gap-2 text-gray-800">
+                <Tv className="text-purple-600" />
+                Digi (TV Receiver)
+              </h2>
+              {selectedProducts.kipMain && (
+                <div className="mb-3 p-3 bg-green-100 border border-green-300 rounded-lg text-sm text-green-700">
+                  ✓ GigaKombi Vorteil: 5€ Rabatt pro Monat (24 Monate) = 120€ Ersparnis
+                </div>
+              )}
+              {!selectedProducts.kipMain && (
+                <div className="mb-3 p-3 bg-yellow-100 border border-yellow-300 rounded-lg text-sm text-yellow-700">
+                  ⚠ Für GigaKombi Vorteil (5€ Rabatt) muss KIP gewählt werden
+                </div>
+              )}
+              <select
+                value={selectedProducts.digi}
+                onChange={(e) => {
+                  setSelectedProducts(prev => ({ 
+                    ...prev, 
+                    digi: e.target.value,
+                    nets: e.target.value ? prev.nets : [] // Nets zurücksetzen wenn kein Digi gewählt
+                  }));
+                }}
+                className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500"
+              >
+                <option value="">Kein Digi</option>
+                {Object.entries(products.digi).map(([key, product]) => (
+                  <option key={key} value={key}>
+                    {product.name} - {product.priceMonths1to6}€ (1-6 Mon.) / {product.priceMonths7to24}€ (7-24 Mon.)
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Net (Nebenreceiver) */}
+            {selectedProducts.digi && (
+              <div className="bg-white p-4 rounded-lg shadow">
+                <h2 className="text-lg font-semibold mb-3 flex items-center gap-2 text-gray-800">
+                  <Tv className="text-blue-600" />
+                  Net (Nebenreceiver)
+                </h2>
+                <div className="mb-3 p-3 bg-blue-100 border border-blue-300 rounded-lg text-sm text-blue-700">
+                  ℹ️ Maximal 2 Nets möglich. Wenn 2 Nets gewählt werden, müssen beide vom gleichen Typ sein.
+                </div>
+                {selectedProducts.nets.map((net, index) => (
+                  <div key={index} className="flex gap-2 mb-2">
+                    <select
+                      value={net}
+                      onChange={(e) => updateNet(index, e.target.value)}
+                      className="flex-1 p-3 border rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                    >
+                      {Object.entries(products.nets).map(([key, product]) => (
+                        <option key={key} value={key}>
+                          {product.name} - {product.price}€/Monat
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      onClick={() => removeNet(index)}
+                      className="px-3 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
+                    >
+                      <Minus size={18} />
+                    </button>
+                  </div>
+                ))}
+                {selectedProducts.nets.length < 2 && (
+                  <button
+                    onClick={addNet}
+                    className="w-full p-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center justify-center gap-2 transition-colors"
+                  >
+                    <Plus size={18} />
+                    Net hinzufügen
+                  </button>
+                )}
+                {selectedProducts.nets.length === 0 && (
+                  <div className="text-sm text-gray-500 text-center py-4">
+                    Wählen Sie zuerst einen Digi-Tarif aus, um Nets hinzuzufügen
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Mobile HK */}
+            <div className="bg-white p-4 rounded-lg shadow">
+              <h2 className="text-lg font-semibold mb-3 flex items-center gap-2 text-gray-800">
+                <Smartphone className="text-green-600" />
+                Mobile Hauptkarte
+              </h2>
+              {selectedProducts.kipMain ? (
+                <div className="mb-3 p-3 bg-green-100 border border-green-300 rounded-lg text-sm text-green-700">
+                  ✓ GigaKombi Vorteil: 10€ Rabatt pro Monat (24 Monate) = 240€ Ersparnis
+                </div>
+              ) : (
+                <div className="mb-3 p-3 bg-yellow-100 border border-yellow-300 rounded-lg text-sm text-yellow-700">
+                  ⚠ Für GigaKombi Vorteil (10€ Rabatt) muss KIP gewählt werden
+                </div>
+              )}
+              <select
+                value={selectedProducts.mobileHK}
+                onChange={(e) => setSelectedProducts(prev => ({ ...prev, mobileHK: e.target.value }))}
+                className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500"
+              >
+                <option value="">Keine Hauptkarte</option>
+                {Object.entries(products.mobileHK).map(([key, product]) => (
+                  <option key={key} value={key}>
+                    {product.name} - {product.price}€ (Rabatt: -{product.discount}€)
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Mobile ZK */}
+            {selectedProducts.mobileHK && (
+              <div className="bg-white p-4 rounded-lg shadow">
+                <h2 className="text-lg font-semibold mb-3 flex items-center gap-2 text-gray-800">
+                  <Smartphone className="text-orange-600" />
+                  Mobile Zusatzkarten
+                </h2>
+                {selectedProducts.mobileZK.map((zk, index) => (
+                  <div key={index} className="flex gap-2 mb-2">
+                    <select
+                      value={zk}
+                      onChange={(e) => updateMobileZK(index, e.target.value)}
+                      className="flex-1 p-3 border rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                    >
+                      {Object.entries(products.mobileZK).map(([key, product]) => (
+                        <option key={key} value={key}>
+                          {product.name} - {product.price}€
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      onClick={() => removeMobileZK(index)}
+                      className="px-3 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
+                    >
+                      <Minus size={18} />
+                    </button>
+                  </div>
+                ))}
+                <button
+                  onClick={addMobileZK}
+                  className="w-full p-3 bg-red-600 text-white rounded-lg hover:bg-red-700 flex items-center justify-center gap-2 transition-colors"
+                >
+                  <Plus size={18} />
+                  Zusatzkarte hinzufügen
+                </button>
+              </div>
+            )}
+
+            {/* RedData */}
+            <div className="bg-white p-4 rounded-lg shadow">
+              <label className="flex items-center gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={selectedProducts.redData}
+                  onChange={(e) => setSelectedProducts(prev => ({ ...prev, redData: e.target.checked }))}
+                  className="w-5 h-5 text-red-600 focus:ring-red-500 rounded"
+                />
+                <span className="text-lg font-semibold text-gray-800">RedData - 5€/Monat</span>
+              </label>
+            </div>
+          </div>
+
+          {/* Ergebnisse */}
+          <div className="bg-white p-6 rounded-lg shadow">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-2xl font-semibold text-gray-800">Preisberechnung</h2>
+              <button
+                onClick={resetCalculator}
+                className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors text-sm"
+              >
+                Zurücksetzen
+              </button>
+            </div>
+            
+            {currentMonthlyPrice && (
+              <div className="mb-6 grid grid-cols-2 gap-4">
+                <div className="bg-gray-50 p-4 rounded-lg border-l-4 border-gray-400">
+                  <div className="text-sm text-gray-600 mb-1 font-medium">AKTUELL</div>
+                  <div className="text-2xl font-bold text-gray-700">{parseFloat(currentMonthlyPrice).toFixed(2)}€</div>
+                  <div className="text-sm text-gray-500">pro Monat</div>
+                  <div className="text-lg font-semibold text-gray-600 mt-2">{(parseFloat(currentMonthlyPrice) * 24).toFixed(2)}€</div>
+                  <div className="text-xs text-gray-500">2 Jahre gesamt</div>
+                </div>
+                
+                <div className="bg-green-50 p-4 rounded-lg border-l-4 border-green-500">
+                  <div className="text-sm text-green-600 mb-1 font-medium">NEU</div>
+                  <div className="text-2xl font-bold text-green-700">{calculation.monthlyTotal.toFixed(2)}€</div>
+                  <div className="text-sm text-green-500">pro Monat</div>
+                  <div className="text-lg font-semibold text-green-600 mt-2">{calculation.twoYearTotal.toFixed(2)}€</div>
+                  <div className="text-xs text-green-500">2 Jahre gesamt</div>
+                </div>
+              </div>
+            )}
+            
+            <div className="space-y-4">
+              {!currentMonthlyPrice && (
+                <>
+                  <div className="bg-green-50 p-4 rounded-lg border border-green-200">
+                    <div className="text-lg font-semibold text-gray-700">Neuer monatlicher Preis</div>
+                    <div className="text-3xl font-bold text-green-600">{calculation.monthlyTotal.toFixed(2)}€</div>
+                  </div>
+                  
+                  <div className="bg-green-50 p-4 rounded-lg border border-green-200">
+                    <div className="text-lg font-semibold text-gray-700">Neuer 2-Jahres-Preis</div>
+                    <div className="text-3xl font-bold text-green-600">{calculation.twoYearTotal.toFixed(2)}€</div>
+                  </div>
+                </>
+              )}
+              
+              {currentMonthlyPrice && (
+                <>
+                  <div className="bg-gray-50 p-4 rounded-lg border">
+                    <div className="text-lg font-semibold text-gray-700">Monatliche Differenz</div>
+                    <div className={`text-3xl font-bold ${calculation.monthlySavings >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                      {calculation.monthlySavings >= 0 ? '+' : ''}{calculation.monthlySavings.toFixed(2)}€
+                    </div>
+                  </div>
+                  
+                  <div className="bg-gray-50 p-4 rounded-lg border">
+                    <div className="text-lg font-semibold text-gray-700">2-Jahres-Differenz</div>
+                    <div className={`text-3xl font-bold ${calculation.twoYearSavings >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                      {calculation.twoYearSavings >= 0 ? '+' : ''}{calculation.twoYearSavings.toFixed(2)}€
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default VodafoneCalculator;

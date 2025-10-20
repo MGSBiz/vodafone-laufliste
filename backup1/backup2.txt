@@ -1,0 +1,767 @@
+import React, { useState, useEffect } from 'react';
+import { Calculator, Plus, Minus, Euro, Phone, Tv, Smartphone, Settings, Eye, EyeOff } from 'lucide-react';
+
+const VodafoneCalculator = () => {
+  const [customerType, setCustomerType] = useState('new');
+  const [currentMonthlyPrice, setCurrentMonthlyPrice] = useState('');
+  const [showCommissionSettings, setShowCommissionSettings] = useState(false);
+  const [showMyCommission, setShowMyCommission] = useState(false);
+  
+  // Stückprovisionen - HIER kannst du deine Provisionen eintragen
+  const [commissions, setCommissions] = useState({
+    // KIP Provisionen (Neukunde vs Upsell)
+    kip50New: '45',       // KIP 50 Neukunde
+    kip50Upsell: '25',    // KIP 50 Upsell
+    kip100New: '55',      // KIP 100 Neukunde  
+    kip100Upsell: '35',   // KIP 100 Upsell
+    kip250New: '85',      // KIP 250 Neukunde
+    kip250Upsell: '45',   // KIP 250 Upsell
+    kip500New: '125',     // KIP 500 Neukunde
+    kip500Upsell: '65',   // KIP 500 Upsell
+    kip1000New: '205',    // KIP 1000 Neukunde (175 + 30 KAS)
+    kip1000Upsell: '105', // KIP 1000 Upsell
+    
+    // Digi Provisionen
+    digiHomeNew: '20',           // Digi Home Neukunde
+    digiHomeUpsell: '15',        // Digi Home Upsell
+    digiSoundNew: '25',          // Digi Sound Neukunde
+    digiSoundUpsell: '18',       // Digi Sound Upsell
+    digiHomeNetflixNew: '35',    // Digi Home Netflix Neukunde
+    digiHomeNetflixUpsell: '25', // Digi Home Netflix Upsell
+    digiSoundNetflixNew: '40',   // Digi Sound Netflix Neukunde
+    digiSoundNetflixUpsell: '30', // Digi Sound Netflix Upsell
+    
+    // Mobile HK Provisionen
+    mobileXSNew: '30',     // Mobile HK XS Neukunde
+    mobileXSUpsell: '20',  // Mobile HK XS Upsell
+    mobileSNew: '35',      // Mobile HK S Neukunde
+    mobileSUpsell: '25',   // Mobile HK S Upsell
+    mobileMNew: '40',      // Mobile HK M Neukunde
+    mobileMUpsell: '30',   // Mobile HK M Upsell
+    mobileLNew: '45',      // Mobile HK L Neukunde
+    mobileLUpsell: '35',   // Mobile HK L Upsell
+    mobileXLNew: '55',     // Mobile HK XL Neukunde
+    mobileXLUpsell: '40',  // Mobile HK XL Upsell
+    
+    // Mobile ZK (immer gleich)
+    mobileZKS: '10',       // Mobile ZK S
+    mobileZKM: '15',       // Mobile ZK M
+    mobileZKL: '20',       // Mobile ZK L
+    mobileZKXL: '25',      // Mobile ZK XL
+    
+    // RedData (immer gleich)
+    redData: '5'           // RedData
+  });
+  
+  const [selectedProducts, setSelectedProducts] = useState({
+    kipMain: '',
+    kipYear2: '',
+    digi: '',
+    mobileHK: '',
+    mobileZK: [],
+    redData: false
+  });
+  
+  const [calculation, setCalculation] = useState({
+    monthlyTotal: 0,
+    twoYearTotal: 0,
+    monthlySavings: 0,
+    twoYearSavings: 0,
+    myCommission: 0
+  });
+
+  // Produktdaten
+  const products = {
+    kip: {
+      50: { name: 'KIP 50', price: 39.99, newCustomerPrice: 9.99 },
+      100: { name: 'KIP 100', price: 44.99, newCustomerPrice: 19.99 },
+      250: { name: 'KIP 250', price: 49.99, newCustomerPrice: 19.99 },
+      500: { name: 'KIP 500', price: 54.99, newCustomerPrice: 19.99 },
+      1000: { name: 'KIP 1000', price: 64.99, newCustomerPrice: 19.99 }
+    },
+    digi: {
+      home: { name: 'Digi Home', priceMonths1to6: 9.99, priceMonths7to24: 14.99 },
+      sound: { name: 'Digi Sound', priceMonths1to6: 14.99, priceMonths7to24: 19.99 },
+      homeNetflix: { name: 'Digi Home mit Netflix', priceMonths1to6: 19.99, priceMonths7to24: 25.99 },
+      soundNetflix: { name: 'Digi Sound mit Netflix', priceMonths1to6: 24.99, priceMonths7to24: 30.99 }
+    },
+    mobileHK: {
+      XS: { name: 'Mobile HK XS', price: 29.99, discount: 6 },
+      S: { name: 'Mobile HK S', price: 39.99, discount: 8 },
+      M: { name: 'Mobile HK M', price: 49.99, discount: 10 },
+      L: { name: 'Mobile HK L', price: 59.99, discount: 12 },
+      XL: { name: 'Mobile HK XL', price: 79.99, discount: 16 }
+    },
+    mobileZK: {
+      S: { name: 'Mobile ZK S', price: 9.99 },
+      M: { name: 'Mobile ZK M', price: 19.99 },
+      L: { name: 'Mobile ZK L', price: 29.99 },
+      XL: { name: 'Mobile ZK XL', price: 39.99 }
+    },
+    redData: { name: 'RedData', price: 5 }
+  };
+
+  const addMobileZK = () => {
+    setSelectedProducts(prev => ({
+      ...prev,
+      mobileZK: [...prev.mobileZK, 'S']
+    }));
+  };
+
+  const removeMobileZK = (index) => {
+    setSelectedProducts(prev => ({
+      ...prev,
+      mobileZK: prev.mobileZK.filter((_, i) => i !== index)
+    }));
+  };
+
+  const updateMobileZK = (index, value) => {
+    setSelectedProducts(prev => ({
+      ...prev,
+      mobileZK: prev.mobileZK.map((item, i) => i === index ? value : item)
+    }));
+  };
+
+  const updateCommission = (key, value) => {
+    setCommissions(prev => ({
+      ...prev,
+      [key]: value
+    }));
+  };
+
+  const calculatePrices = () => {
+    let monthlyTotal = 0;
+    let twoYearTotal = 0;
+    let hasKIP = false;
+
+    // KIP Berechnung
+    if (selectedProducts.kipMain) {
+      hasKIP = true;
+      const kipMainProduct = products.kip[selectedProducts.kipMain];
+      const kipYear2Product = products.kip[selectedProducts.kipYear2] || kipMainProduct;
+      
+      if (customerType === 'new') {
+        const months1to12 = kipMainProduct.newCustomerPrice * 12;
+        const months13to24 = kipYear2Product.price * 12;
+        twoYearTotal += months1to12 + months13to24;
+        monthlyTotal += (months1to12 + months13to24) / 24;
+      } else {
+        twoYearTotal += kipYear2Product.price * 24;
+        monthlyTotal += kipYear2Product.price;
+      }
+    }
+
+    // Digi Berechnung
+    if (selectedProducts.digi) {
+      const digiProduct = products.digi[selectedProducts.digi];
+      const months1to6 = digiProduct.priceMonths1to6 * 6;
+      const months7to24 = digiProduct.priceMonths7to24 * 18;
+      
+      let digiDiscount = 0;
+      if (hasKIP) {
+        digiDiscount = 5 * 24;
+      }
+      
+      twoYearTotal += months1to6 + months7to24 - digiDiscount;
+      monthlyTotal += (months1to6 + months7to24 - digiDiscount) / 24;
+    }
+
+    // Mobile HK Berechnung
+    if (selectedProducts.mobileHK) {
+      const mobileProduct = products.mobileHK[selectedProducts.mobileHK];
+      let mobilePrice = mobileProduct.price;
+      
+      mobilePrice -= mobileProduct.discount;
+      
+      if (hasKIP) {
+        mobilePrice -= 10;
+      }
+      
+      twoYearTotal += mobilePrice * 24;
+      monthlyTotal += mobilePrice;
+    }
+
+    // Mobile ZK Berechnung
+    selectedProducts.mobileZK.forEach(zkType => {
+      const zkProduct = products.mobileZK[zkType];
+      twoYearTotal += zkProduct.price * 24;
+      monthlyTotal += zkProduct.price;
+    });
+
+    // RedData
+    if (selectedProducts.redData) {
+      twoYearTotal += products.redData.price * 24;
+      monthlyTotal += products.redData.price;
+    }
+
+    // Stückprovision berechnen
+    let totalCommission = 0;
+    
+    // KIP Provision
+    if (selectedProducts.kipMain) {
+      const isNewCustomer = customerType === 'new';
+      const kipType = selectedProducts.kipMain;
+      const commissionKey = `kip${kipType}${isNewCustomer ? 'New' : 'Upsell'}`;
+      const kipCommission = parseFloat(commissions[commissionKey]) || 0;
+      totalCommission += kipCommission;
+    }
+    
+    // Digi Provision
+    if (selectedProducts.digi) {
+      const isNewCustomer = customerType === 'new';
+      const digiType = selectedProducts.digi;
+      // Umwandlung der Digi-Keys
+      const digiKeyMap = {
+        home: 'digiHome',
+        sound: 'digiSound', 
+        homeNetflix: 'digiHomeNetflix',
+        soundNetflix: 'digiSoundNetflix'
+      };
+      const commissionKey = `${digiKeyMap[digiType]}${isNewCustomer ? 'New' : 'Upsell'}`;
+      const digiCommission = parseFloat(commissions[commissionKey]) || 0;
+      totalCommission += digiCommission;
+    }
+    
+    // Mobile HK Provision
+    if (selectedProducts.mobileHK) {
+      const isNewCustomer = customerType === 'new';
+      const mobileType = selectedProducts.mobileHK;
+      const commissionKey = `mobile${mobileType}${isNewCustomer ? 'New' : 'Upsell'}`;
+      const mobileCommission = parseFloat(commissions[commissionKey]) || 0;
+      totalCommission += mobileCommission;
+    }
+    
+    // Mobile ZK Provision (pro Karte)
+    selectedProducts.mobileZK.forEach((zkType) => {
+      const commissionKey = `mobileZK${zkType}`;
+      const zkCommission = parseFloat(commissions[commissionKey]) || 0;
+      totalCommission += zkCommission;
+    });
+    
+    // RedData Provision
+    if (selectedProducts.redData) {
+      const redDataCommission = parseFloat(commissions.redData) || 0;
+      totalCommission += redDataCommission;
+    }
+
+    // Berechnung der Ersparnisse
+    const currentMonthly = parseFloat(currentMonthlyPrice) || 0;
+    const currentTwoYear = currentMonthly * 24;
+    
+    const monthlySavings = currentMonthly - monthlyTotal;
+    const twoYearSavings = currentTwoYear - twoYearTotal;
+
+    setCalculation({
+      monthlyTotal: Math.round(monthlyTotal * 100) / 100,
+      twoYearTotal: Math.round(twoYearTotal * 100) / 100,
+      monthlySavings: Math.round(monthlySavings * 100) / 100,
+      twoYearSavings: Math.round(twoYearSavings * 100) / 100,
+      myCommission: Math.round(totalCommission * 100) / 100
+    });
+  };
+
+  useEffect(() => {
+    calculatePrices();
+  }, [selectedProducts, customerType, currentMonthlyPrice, commissions]);
+
+  return (
+    <div className="max-w-6xl mx-auto p-6 bg-white min-h-screen">
+      <div className="mb-8 text-center">
+        <h1 className="text-3xl font-bold text-gray-800 flex items-center justify-center gap-2">
+          <Calculator className="text-red-600" />
+          Vodafone Preisrechner
+        </h1>
+        <p className="text-gray-600 mt-2">Berechnung von Angeboten für Kunden</p>
+      </div>
+
+      <div className="grid lg:grid-cols-3 gap-6">
+        {/* Eingaben */}
+        <div className="space-y-6">
+          <div className="bg-gray-50 p-4 rounded-lg">
+            <h2 className="text-xl font-semibold mb-4">Kundentyp</h2>
+            <div className="flex gap-4">
+              <label className="flex items-center">
+                <input
+                  type="radio"
+                  name="customerType"
+                  value="new"
+                  checked={customerType === 'new'}
+                  onChange={(e) => setCustomerType(e.target.value)}
+                  className="mr-2"
+                />
+                Neukunde
+              </label>
+              <label className="flex items-center">
+                <input
+                  type="radio"
+                  name="customerType"
+                  value="existing"
+                  checked={customerType === 'existing'}
+                  onChange={(e) => setCustomerType(e.target.value)}
+                  className="mr-2"
+                />
+                Bestandskunde
+              </label>
+            </div>
+          </div>
+
+          <div className="bg-gray-50 p-4 rounded-lg">
+            <h2 className="text-xl font-semibold mb-4">Aktueller Preis</h2>
+            <div className="flex items-center gap-2">
+              <Euro className="text-gray-500" size={20} />
+              <input
+                type="number"
+                value={currentMonthlyPrice}
+                onChange={(e) => setCurrentMonthlyPrice(e.target.value)}
+                placeholder="Aktueller monatlicher Preis"
+                className="w-full p-2 border rounded"
+                step="0.01"
+              />
+            </div>
+          </div>
+
+          {/* KIP Auswahl */}
+          <div className="bg-gray-50 p-4 rounded-lg">
+            <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
+              <Phone className="text-red-600" />
+              KIP (Internet, TV, Telefon)
+            </h2>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-2">Jahr 1 (Monate 1-12)</label>
+                <select
+                  value={selectedProducts.kipMain}
+                  onChange={(e) => setSelectedProducts(prev => ({ ...prev, kipMain: e.target.value }))}
+                  className="w-full p-2 border rounded"
+                >
+                  <option value="">Kein KIP</option>
+                  {Object.entries(products.kip).map(([key, product]) => (
+                    <option key={key} value={key}>
+                      {product.name} - {customerType === 'new' ? product.newCustomerPrice : product.price}€
+                    </option>
+                  ))}
+                </select>
+              </div>
+              
+              {selectedProducts.kipMain && (
+                <div>
+                  <label className="block text-sm font-medium mb-2">Jahr 2 (Monate 13-24) - Wechselgarantie</label>
+                  <select
+                    value={selectedProducts.kipYear2}
+                    onChange={(e) => setSelectedProducts(prev => ({ ...prev, kipYear2: e.target.value }))}
+                    className="w-full p-2 border rounded"
+                  >
+                    <option value="">Gleicher Tarif wie Jahr 1</option>
+                    {Object.entries(products.kip).filter(([key]) => {
+                      const speed = parseInt(key);
+                      const mainSpeed = parseInt(selectedProducts.kipMain);
+                      return speed === 100 || speed === 250 || speed === 500 || (speed === 1000 && mainSpeed === 1000);
+                    }).map(([key, product]) => (
+                      <option key={key} value={key}>
+                        {product.name} - {product.price}€
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Digi Auswahl */}
+          <div className="bg-gray-50 p-4 rounded-lg">
+            <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
+              <Tv className="text-purple-600" />
+              Digi (TV Receiver)
+            </h2>
+            {selectedProducts.kipMain && (
+              <div className="mb-3 p-2 bg-green-100 border border-green-300 rounded text-sm text-green-700">
+                ✓ GigaKombi Vorteil: 5€ Rabatt pro Monat (24 Monate) = 120€ Ersparnis
+              </div>
+            )}
+            {!selectedProducts.kipMain && (
+              <div className="mb-3 p-2 bg-yellow-100 border border-yellow-300 rounded text-sm text-yellow-700">
+                ⚠ Für GigaKombi Vorteil (5€ Rabatt) muss KIP gewählt werden
+              </div>
+            )}
+            <select
+              value={selectedProducts.digi}
+              onChange={(e) => setSelectedProducts(prev => ({ ...prev, digi: e.target.value }))}
+              className="w-full p-2 border rounded"
+            >
+              <option value="">Kein Digi</option>
+              {Object.entries(products.digi).map(([key, product]) => (
+                <option key={key} value={key}>
+                  {product.name} - {product.priceMonths1to6}€ (1-6 Mon.) / {product.priceMonths7to24}€ (7-24 Mon.)
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Mobile HK */}
+          <div className="bg-gray-50 p-4 rounded-lg">
+            <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
+              <Smartphone className="text-green-600" />
+              Mobile Hauptkarte
+            </h2>
+            {selectedProducts.kipMain && (
+              <div className="mb-3 p-2 bg-green-100 border border-green-300 rounded text-sm text-green-700">
+                ✓ GigaKombi Vorteil: 10€ Rabatt pro Monat (24 Monate) = 240€ Ersparnis
+              </div>
+            )}
+            {!selectedProducts.kipMain && (
+              <div className="mb-3 p-2 bg-yellow-100 border border-yellow-300 rounded text-sm text-yellow-700">
+                ⚠ Für GigaKombi Vorteil (10€ Rabatt) muss KIP gewählt werden
+              </div>
+            )}
+            <select
+              value={selectedProducts.mobileHK}
+              onChange={(e) => setSelectedProducts(prev => ({ ...prev, mobileHK: e.target.value }))}
+              className="w-full p-2 border rounded"
+            >
+              <option value="">Keine Hauptkarte</option>
+              {Object.entries(products.mobileHK).map(([key, product]) => (
+                <option key={key} value={key}>
+                  {product.name} - {product.price}€ (Rabatt: -{product.discount}€)
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Mobile ZK */}
+          {selectedProducts.mobileHK && (
+            <div className="bg-gray-50 p-4 rounded-lg">
+              <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
+                <Smartphone className="text-orange-600" />
+                Mobile Zusatzkarten
+              </h2>
+              {selectedProducts.mobileZK.map((zk, index) => (
+                <div key={index} className="flex gap-2 mb-2">
+                  <select
+                    value={zk}
+                    onChange={(e) => updateMobileZK(index, e.target.value)}
+                    className="flex-1 p-2 border rounded"
+                  >
+                    {Object.entries(products.mobileZK).map(([key, product]) => (
+                      <option key={key} value={key}>
+                        {product.name} - {product.price}€
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    onClick={() => removeMobileZK(index)}
+                    className="px-3 py-2 bg-red-500 text-white rounded hover:bg-red-600"
+                  >
+                    <Minus size={16} />
+                  </button>
+                </div>
+              ))}
+              <button
+                onClick={addMobileZK}
+                className="w-full p-2 bg-red-600 text-white rounded hover:bg-red-700 flex items-center justify-center gap-2"
+              >
+                <Plus size={16} />
+                Zusatzkarte hinzufügen
+              </button>
+            </div>
+          )}
+
+          {/* RedData */}
+          <div className="bg-gray-50 p-4 rounded-lg">
+            <label className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={selectedProducts.redData}
+                onChange={(e) => setSelectedProducts(prev => ({ ...prev, redData: e.target.checked }))}
+              />
+              <span className="font-semibold">RedData - 5€/Monat</span>
+            </label>
+          </div>
+        </div>
+
+        {/* Ergebnisse */}
+        <div className="bg-red-50 p-6 rounded-lg">
+          <h2 className="text-2xl font-semibold mb-6 text-center">Preisberechnung</h2>
+          
+          {currentMonthlyPrice && (
+            <div className="mb-6 grid grid-cols-2 gap-4">
+              <div className="bg-white p-4 rounded-lg shadow border-l-4 border-gray-400">
+                <div className="text-sm text-gray-600 mb-1">AKTUELL</div>
+                <div className="text-xl font-bold text-gray-700">{parseFloat(currentMonthlyPrice).toFixed(2)}€</div>
+                <div className="text-sm text-gray-500">pro Monat</div>
+                <div className="text-lg font-semibold text-gray-600 mt-2">{(parseFloat(currentMonthlyPrice) * 24).toFixed(2)}€</div>
+                <div className="text-xs text-gray-500">2 Jahre gesamt</div>
+              </div>
+              
+              <div className="bg-white p-4 rounded-lg shadow border-l-4 border-red-500">
+                <div className="text-sm text-red-600 mb-1">NEU</div>
+                <div className="text-xl font-bold text-red-700">{calculation.monthlyTotal.toFixed(2)}€</div>
+                <div className="text-sm text-red-500">pro Monat</div>
+                <div className="text-lg font-semibold text-red-600 mt-2">{calculation.twoYearTotal.toFixed(2)}€</div>
+                <div className="text-xs text-red-500">2 Jahre gesamt</div>
+              </div>
+            </div>
+          )}
+          
+          <div className="space-y-4">
+            {!currentMonthlyPrice && (
+              <>
+                <div className="bg-white p-4 rounded-lg shadow">
+                  <div className="text-lg font-semibold">Neuer monatlicher Preis</div>
+                  <div className="text-2xl font-bold text-red-600">{calculation.monthlyTotal.toFixed(2)}€</div>
+                </div>
+                
+                <div className="bg-white p-4 rounded-lg shadow">
+                  <div className="text-lg font-semibold">Neuer 2-Jahres-Preis</div>
+                  <div className="text-2xl font-bold text-red-600">{calculation.twoYearTotal.toFixed(2)}€</div>
+                </div>
+              </>
+            )}
+            
+            {currentMonthlyPrice && (
+              <>
+                <div className="bg-white p-4 rounded-lg shadow">
+                  <div className="text-lg font-semibold">Monatliche Ersparnis</div>
+                  <div className={`text-2xl font-bold ${calculation.monthlySavings >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                    {calculation.monthlySavings >= 0 ? '+' : ''}{calculation.monthlySavings.toFixed(2)}€
+                  </div>
+                </div>
+                
+                <div className="bg-white p-4 rounded-lg shadow">
+                  <div className="text-lg font-semibold">2-Jahres-Ersparnis</div>
+                  <div className={`text-2xl font-bold ${calculation.twoYearSavings >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                    {calculation.twoYearSavings >= 0 ? '+' : ''}{calculation.twoYearSavings.toFixed(2)}€
+                  </div>
+                </div>
+              </>
+            )}
+
+            {/* Versteckter Button für Provision */}
+            <div className="text-center">
+              <button
+                onClick={() => setShowMyCommission(!showMyCommission)}
+                className="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700 flex items-center justify-center gap-2 mx-auto"
+              >
+                {showMyCommission ? <EyeOff size={16} /> : <Eye size={16} />}
+                {showMyCommission ? 'Provision verstecken' : 'Meine Provision anzeigen'}
+              </button>
+            </div>
+            
+            {/* Provision (nur wenn sichtbar) */}
+            {showMyCommission && (
+              <div className="bg-gradient-to-br from-green-100 to-emerald-100 p-4 rounded-lg shadow border-2 border-green-300">
+                <div className="text-lg font-semibold text-green-800 flex items-center gap-2">
+                  💰 Meine Auszahlung
+                </div>
+                <div className="text-3xl font-bold text-green-700">{calculation.myCommission.toFixed(2)}€</div>
+                <div className="text-sm text-green-600">Stückprovision gesamt</div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Provisionen einstellen */}
+        <div className="bg-gray-50 p-6 rounded-lg">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-semibold">Provisionen einstellen</h2>
+            <button
+              onClick={() => setShowCommissionSettings(!showCommissionSettings)}
+              className="px-3 py-1 bg-gray-600 text-white rounded hover:bg-gray-700 flex items-center gap-1"
+            >
+              <Settings size={16} />
+              {showCommissionSettings ? 'Verstecken' : 'Bearbeiten'}
+            </button>
+          </div>
+
+          {showCommissionSettings && (
+            <div className="space-y-6 max-h-96 overflow-y-auto">
+              {/* KIP Provisionen */}
+              <div>
+                <h3 className="font-semibold text-red-600 mb-2">KIP Provisionen</h3>
+                <div className="grid grid-cols-2 gap-2 text-sm">
+                  {Object.entries(products.kip).map(([speed, product]) => (
+                    <React.Fragment key={speed}>
+                      <div className="bg-white p-2 rounded">
+                        <label className="block text-xs text-gray-600">{product.name} Neukunde</label>
+                        <input
+                          type="number"
+                          value={commissions[`kip${speed}New`]}
+                          onChange={(e) => updateCommission(`kip${speed}New`, e.target.value)}
+                          className="w-full p-1 border rounded text-xs"
+                          placeholder="€"
+                        />
+                      </div>
+                      <div className="bg-white p-2 rounded">
+                        <label className="block text-xs text-gray-600">{product.name} Upsell</label>
+                        <input
+                          type="number"
+                          value={commissions[`kip${speed}Upsell`]}
+                          onChange={(e) => updateCommission(`kip${speed}Upsell`, e.target.value)}
+                          className="w-full p-1 border rounded text-xs"
+                          placeholder="€"
+                        />
+                      </div>
+                    </React.Fragment>
+                  ))}
+                </div>
+              </div>
+
+              {/* Digi Provisionen */}
+              <div>
+                <h3 className="font-semibold text-purple-600 mb-2">Digi Provisionen</h3>
+                <div className="grid grid-cols-2 gap-2 text-sm">
+                  <div className="bg-white p-2 rounded">
+                    <label className="block text-xs text-gray-600">Digi Home Neukunde</label>
+                    <input
+                      type="number"
+                      value={commissions.digiHomeNew}
+                      onChange={(e) => updateCommission('digiHomeNew', e.target.value)}
+                      className="w-full p-1 border rounded text-xs"
+                      placeholder="€"
+                    />
+                  </div>
+                  <div className="bg-white p-2 rounded">
+                    <label className="block text-xs text-gray-600">Digi Home Upsell</label>
+                    <input
+                      type="number"
+                      value={commissions.digiHomeUpsell}
+                      onChange={(e) => updateCommission('digiHomeUpsell', e.target.value)}
+                      className="w-full p-1 border rounded text-xs"
+                      placeholder="€"
+                    />
+                  </div>
+                  <div className="bg-white p-2 rounded">
+                    <label className="block text-xs text-gray-600">Digi Sound Neukunde</label>
+                    <input
+                      type="number"
+                      value={commissions.digiSoundNew}
+                      onChange={(e) => updateCommission('digiSoundNew', e.target.value)}
+                      className="w-full p-1 border rounded text-xs"
+                      placeholder="€"
+                    />
+                  </div>
+                  <div className="bg-white p-2 rounded">
+                    <label className="block text-xs text-gray-600">Digi Sound Upsell</label>
+                    <input
+                      type="number"
+                      value={commissions.digiSoundUpsell}
+                      onChange={(e) => updateCommission('digiSoundUpsell', e.target.value)}
+                      className="w-full p-1 border rounded text-xs"
+                      placeholder="€"
+                    />
+                  </div>
+                  <div className="bg-white p-2 rounded">
+                    <label className="block text-xs text-gray-600">Digi Home Netflix Neukunde</label>
+                    <input
+                      type="number"
+                      value={commissions.digiHomeNetflixNew}
+                      onChange={(e) => updateCommission('digiHomeNetflixNew', e.target.value)}
+                      className="w-full p-1 border rounded text-xs"
+                      placeholder="€"
+                    />
+                  </div>
+                  <div className="bg-white p-2 rounded">
+                    <label className="block text-xs text-gray-600">Digi Home Netflix Upsell</label>
+                    <input
+                      type="number"
+                      value={commissions.digiHomeNetflixUpsell}
+                      onChange={(e) => updateCommission('digiHomeNetflixUpsell', e.target.value)}
+                      className="w-full p-1 border rounded text-xs"
+                      placeholder="€"
+                    />
+                  </div>
+                  <div className="bg-white p-2 rounded">
+                    <label className="block text-xs text-gray-600">Digi Sound Netflix Neukunde</label>
+                    <input
+                      type="number"
+                      value={commissions.digiSoundNetflixNew}
+                      onChange={(e) => updateCommission('digiSoundNetflixNew', e.target.value)}
+                      className="w-full p-1 border rounded text-xs"
+                      placeholder="€"
+                    />
+                  </div>
+                  <div className="bg-white p-2 rounded">
+                    <label className="block text-xs text-gray-600">Digi Sound Netflix Upsell</label>
+                    <input
+                      type="number"
+                      value={commissions.digiSoundNetflixUpsell}
+                      onChange={(e) => updateCommission('digiSoundNetflixUpsell', e.target.value)}
+                      className="w-full p-1 border rounded text-xs"
+                      placeholder="€"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Mobile HK Provisionen */}
+              <div>
+                <h3 className="font-semibold text-green-600 mb-2">Mobile HK Provisionen</h3>
+                <div className="grid grid-cols-2 gap-2 text-sm">
+                  {Object.entries(products.mobileHK).map(([type, product]) => (
+                    <React.Fragment key={type}>
+                      <div className="bg-white p-2 rounded">
+                        <label className="block text-xs text-gray-600">{product.name} Neukunde</label>
+                        <input
+                          type="number"
+                          value={commissions[`mobile${type}New`]}
+                          onChange={(e) => updateCommission(`mobile${type}New`, e.target.value)}
+                          className="w-full p-1 border rounded text-xs"
+                          placeholder="€"
+                        />
+                      </div>
+                      <div className="bg-white p-2 rounded">
+                        <label className="block text-xs text-gray-600">{product.name} Upsell</label>
+                        <input
+                          type="number"
+                          value={commissions[`mobile${type}Upsell`]}
+                          onChange={(e) => updateCommission(`mobile${type}Upsell`, e.target.value)}
+                          className="w-full p-1 border rounded text-xs"
+                          placeholder="€"
+                        />
+                      </div>
+                    </React.Fragment>
+                  ))}
+                </div>
+              </div>
+
+              {/* Mobile ZK Provisionen */}
+              <div>
+                <h3 className="font-semibold text-orange-600 mb-2">Mobile ZK Provisionen</h3>
+                <div className="grid grid-cols-2 gap-2 text-sm">
+                  {Object.entries(products.mobileZK).map(([type, product]) => (
+                    <div key={type} className="bg-white p-2 rounded">
+                      <label className="block text-xs text-gray-600">{product.name}</label>
+                      <input
+                        type="number"
+                        value={commissions[`mobileZK${type}`]}
+                        onChange={(e) => updateCommission(`mobileZK${type}`, e.target.value)}
+                        className="w-full p-1 border rounded text-xs"
+                        placeholder="€"
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* RedData Provision */}
+              <div>
+                <h3 className="font-semibold text-gray-600 mb-2">RedData Provision</h3>
+                <div className="bg-white p-2 rounded">
+                  <label className="block text-xs text-gray-600">RedData</label>
+                  <input
+                    type="number"
+                    value={commissions.redData}
+                    onChange={(e) => updateCommission('redData', e.target.value)}
+                    className="w-full p-1 border rounded text-xs"
+                    placeholder="€"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default VodafoneCalculator;
