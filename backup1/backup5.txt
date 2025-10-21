@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Trash2, MapPin, Clock, Home, User, Edit2, ChevronDown, ChevronUp, Save, Filter, X, Download, Upload } from 'lucide-react';
+import { Plus, Trash2, MapPin, Clock, Home, User, ChevronDown, ChevronUp, Filter, X, Download, Upload, Search } from 'lucide-react';
 
 const GebietsLaufliste = () => {
   const [lists, setLists] = useState([]);
@@ -7,8 +7,10 @@ const GebietsLaufliste = () => {
   const [showNewListForm, setShowNewListForm] = useState(false);
   const [newListTitle, setNewListTitle] = useState('');
   const [expandedAddresses, setExpandedAddresses] = useState({});
+  const [expandedStreets, setExpandedStreets] = useState({});
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [customerTypeFilter, setCustomerTypeFilter] = useState('ALL');
+  const [searchQuery, setSearchQuery] = useState('');
   
   // Neue Straße und Hausnummer
   const [newStreet, setNewStreet] = useState('');
@@ -302,6 +304,13 @@ const GebietsLaufliste = () => {
     }));
   };
 
+  const toggleStreetExpanded = (streetId) => {
+    setExpandedStreets(prev => ({
+      ...prev,
+      [streetId]: !prev[streetId]
+    }));
+  };
+
   const formatTimestamp = (timestamp) => {
     const date = new Date(timestamp);
     return date.toLocaleString('de-DE', {
@@ -336,11 +345,32 @@ const GebietsLaufliste = () => {
     if (customerType === 'nur KAS') customerType = 'Nur KAS';
     
     switch(customerType) {
-      case 'KIP möglich': return { icon: '🆕', color: 'bg-blue-100 text-blue-800', label: 'KIP möglich' };
-      case 'Upsell möglich': return { icon: '📈', color: 'bg-purple-100 text-purple-800', label: 'Upsell möglich' };
-      case 'Nur KAS': return { icon: '📡', color: 'bg-orange-100 text-orange-800', label: 'Nur KAS' };
-      default: return { icon: '🆕', color: 'bg-blue-100 text-blue-800', label: 'KIP möglich' };
+      case 'KIP möglich': return { icon: '🆕', color: 'bg-blue-100 text-blue-800', label: 'KIP' };
+      case 'Upsell möglich': return { icon: '📈', color: 'bg-purple-100 text-purple-800', label: 'Upsell' };
+      case 'Nur KAS': return { icon: '📡', color: 'bg-orange-100 text-orange-800', label: 'KAS' };
+      default: return { icon: '🆕', color: 'bg-blue-100 text-blue-800', label: 'KIP' };
     }
+  };
+
+  const getStreetStats = (street) => {
+    const stats = {
+      total: street.addresses.length,
+      offen: 0,
+      ki: 0,
+      nm: 0,
+      na: 0,
+      vertrag: 0
+    };
+
+    street.addresses.forEach(addr => {
+      if (!addr.status) stats.offen++;
+      else if (addr.status === 'KI') stats.ki++;
+      else if (addr.status === 'NM') stats.nm++;
+      else if (addr.status === 'NA') stats.na++;
+      else if (addr.status === 'VERTRAG') stats.vertrag++;
+    });
+
+    return stats;
   };
 
   const getStatusStats = () => {
@@ -370,7 +400,6 @@ const GebietsLaufliste = () => {
         else if (addr.status === 'VERTRAG') stats.vertrag++;
         else stats.offen++;
 
-        // Fallback für alte Daten
         let type = addr.customerType;
         if (type === 'Neukunde') type = 'KIP möglich';
         if (type === 'Upsell') type = 'Upsell möglich';
@@ -386,7 +415,6 @@ const GebietsLaufliste = () => {
   };
 
   const filterAddress = (address) => {
-    // Status Filter
     let statusMatch = true;
     if (statusFilter === 'OFFEN') {
       statusMatch = !address.status;
@@ -394,7 +422,6 @@ const GebietsLaufliste = () => {
       statusMatch = address.status === statusFilter;
     }
 
-    // Customer Type Filter mit Fallback für alte Daten
     let customerTypeMatch = true;
     if (customerTypeFilter !== 'ALL') {
       let type = address.customerType;
@@ -411,11 +438,20 @@ const GebietsLaufliste = () => {
   const getFilteredStreets = () => {
     if (!currentListData || !currentListData.streets) return [];
     
+    let streets = currentListData.streets;
+
+    // Suchfilter
+    if (searchQuery.trim()) {
+      streets = streets.filter(street => 
+        street.name.toLowerCase().includes(searchQuery.toLowerCase())
+      );
+    }
+
     if (statusFilter === 'ALL' && customerTypeFilter === 'ALL') {
-      return currentListData.streets;
+      return streets;
     }
     
-    return currentListData.streets
+    return streets
       .map(street => ({
         ...street,
         addresses: street.addresses.filter(filterAddress)
@@ -426,24 +462,24 @@ const GebietsLaufliste = () => {
   const stats = getStatusStats();
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-gray-100 py-4 px-4">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-gray-100 py-2 px-2 md:py-4 md:px-4">
       <div className="max-w-6xl mx-auto">
         {/* Header */}
-        <div className="mb-6 text-center">
-          <h1 className="text-3xl font-bold text-gray-800 flex items-center justify-center gap-2">
-            <MapPin className="text-blue-600" />
-            Gebiets-Laufliste Manager
+        <div className="mb-4 text-center">
+          <h1 className="text-2xl md:text-3xl font-bold text-gray-800 flex items-center justify-center gap-2">
+            <MapPin className="text-blue-600" size={24} />
+            Laufliste Manager
           </h1>
-          <p className="text-gray-600 mt-2">Organisiere deine Außendiensttouren effizient</p>
+          <p className="text-sm text-gray-600 mt-1">Außendiensttouren</p>
         </div>
 
-        {/* Listenauswahl und Neue Liste */}
-        <div className="bg-white p-4 rounded-lg shadow mb-6">
-          <div className="flex gap-4 items-center flex-wrap">
+        {/* Listenauswahl */}
+        <div className="bg-white p-3 md:p-4 rounded-lg shadow mb-4">
+          <div className="flex gap-2 md:gap-4 items-center flex-wrap">
             <select
               value={currentList || ''}
               onChange={(e) => setCurrentList(Number(e.target.value))}
-              className="flex-1 min-w-[200px] p-3 border rounded-lg focus:ring-2 focus:ring-blue-500"
+              className="flex-1 min-w-[200px] p-2 md:p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 text-sm md:text-base"
             >
               <option value="">Liste auswählen...</option>
               {lists.map(list => {
@@ -451,7 +487,7 @@ const GebietsLaufliste = () => {
                 const streetCount = list.streets ? list.streets.length : 0;
                 return (
                   <option key={list.id} value={list.id}>
-                    {list.title} ({streetCount} Straßen, {totalAddresses} Adressen)
+                    {list.title} ({streetCount} Str., {totalAddresses} Adr.)
                   </option>
                 );
               })}
@@ -460,42 +496,42 @@ const GebietsLaufliste = () => {
             {currentList && (
               <button
                 onClick={() => deleteList(currentList)}
-                className="px-4 py-3 bg-red-500 text-white rounded-lg hover:bg-red-600 flex items-center gap-2"
+                className="px-3 py-2 md:px-4 md:py-3 bg-red-500 text-white rounded-lg hover:bg-red-600 flex items-center gap-1 md:gap-2 text-sm md:text-base"
               >
-                <Trash2 size={18} />
-                Liste löschen
+                <Trash2 size={16} />
+                <span className="hidden sm:inline">Löschen</span>
               </button>
             )}
             
             <button
               onClick={() => setShowNewListForm(!showNewListForm)}
-              className="px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
+              className="px-3 py-2 md:px-4 md:py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-1 md:gap-2 text-sm md:text-base"
             >
-              <Plus size={18} />
-              Neue Liste
+              <Plus size={16} />
+              <span className="hidden sm:inline">Neue Liste</span>
             </button>
           </div>
 
           {showNewListForm && (
-            <div className="mt-4 p-4 bg-blue-50 rounded-lg">
+            <div className="mt-3 p-3 bg-blue-50 rounded-lg">
               <input
                 type="text"
                 value={newListTitle}
                 onChange={(e) => setNewListTitle(e.target.value)}
                 placeholder="Listentitel (z.B. 'Gebiet Mainz Nord - KW 40')"
-                className="w-full p-3 border rounded-lg mb-3 focus:ring-2 focus:ring-blue-500"
+                className="w-full p-2 md:p-3 border rounded-lg mb-2 focus:ring-2 focus:ring-blue-500 text-sm md:text-base"
                 onKeyPress={(e) => e.key === 'Enter' && createNewList()}
               />
               <div className="flex gap-2">
                 <button
                   onClick={createNewList}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                  className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
                 >
                   Erstellen
                 </button>
                 <button
                   onClick={() => setShowNewListForm(false)}
-                  className="px-4 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400"
+                  className="px-3 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 text-sm"
                 >
                   Abbrechen
                 </button>
@@ -504,17 +540,17 @@ const GebietsLaufliste = () => {
           )}
 
           {/* Backup Buttons */}
-          <div className="mt-4 pt-4 border-t flex gap-3 flex-wrap">
+          <div className="mt-3 pt-3 border-t flex gap-2 flex-wrap">
             <button
               onClick={exportData}
-              className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2"
+              className="px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-1 text-sm"
             >
-              <Download size={18} />
-              Backup erstellen
+              <Download size={14} />
+              Backup
             </button>
-            <label className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 flex items-center gap-2 cursor-pointer">
-              <Upload size={18} />
-              Backup wiederherstellen
+            <label className="px-3 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 flex items-center gap-1 cursor-pointer text-sm">
+              <Upload size={14} />
+              Restore
               <input
                 type="file"
                 accept=".json"
@@ -522,133 +558,119 @@ const GebietsLaufliste = () => {
                 className="hidden"
               />
             </label>
-            <div className="flex items-center text-sm text-gray-600 ml-2">
-              💾 Backup regelmäßig erstellen und sicher speichern!
-            </div>
           </div>
         </div>
 
         {currentListData && (
           <>
-            {/* Statistiken */}
-            <div className="bg-white p-4 rounded-lg shadow mb-6">
-              <h2 className="text-lg font-semibold mb-3 text-gray-800">Statistik</h2>
+            {/* Statistiken - Kompakt */}
+            <div className="bg-white p-3 md:p-4 rounded-lg shadow mb-4">
+              <h2 className="text-base md:text-lg font-semibold mb-2 text-gray-800">Statistik</h2>
               
-              {/* Status Statistik */}
-              <div className="mb-4">
-                <h3 className="text-sm font-medium text-gray-700 mb-2">Status</h3>
-                <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
-                  <div className="bg-gray-50 p-3 rounded-lg border text-center">
-                    <div className="text-2xl font-bold text-gray-700">{stats.total}</div>
+              {/* Status */}
+              <div className="mb-3">
+                <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
+                  <div className="bg-gray-50 p-2 rounded-lg border text-center">
+                    <div className="text-lg md:text-xl font-bold text-gray-700">{stats.total}</div>
                     <div className="text-xs text-gray-600">Gesamt</div>
                   </div>
-                  <div className="bg-gray-50 p-3 rounded-lg border text-center">
-                    <div className="text-2xl font-bold text-gray-700">{stats.offen}</div>
+                  <div className="bg-gray-50 p-2 rounded-lg border text-center">
+                    <div className="text-lg md:text-xl font-bold text-gray-700">{stats.offen}</div>
                     <div className="text-xs text-gray-600">Offen</div>
                   </div>
-                  <div className="bg-red-50 p-3 rounded-lg border-red-200 border text-center">
-                    <div className="text-2xl font-bold text-red-700">{stats.ki}</div>
+                  <div className="bg-red-50 p-2 rounded-lg border-red-200 border text-center">
+                    <div className="text-lg md:text-xl font-bold text-red-700">{stats.ki}</div>
                     <div className="text-xs text-red-600">KI</div>
                   </div>
-                  <div className="bg-yellow-50 p-3 rounded-lg border-yellow-200 border text-center">
-                    <div className="text-2xl font-bold text-yellow-700">{stats.nm}</div>
+                  <div className="bg-yellow-50 p-2 rounded-lg border-yellow-200 border text-center">
+                    <div className="text-lg md:text-xl font-bold text-yellow-700">{stats.nm}</div>
                     <div className="text-xs text-yellow-600">NM</div>
                   </div>
-                  <div className="bg-blue-50 p-3 rounded-lg border-blue-200 border text-center">
-                    <div className="text-2xl font-bold text-blue-700">{stats.na}</div>
+                  <div className="bg-blue-50 p-2 rounded-lg border-blue-200 border text-center">
+                    <div className="text-lg md:text-xl font-bold text-blue-700">{stats.na}</div>
                     <div className="text-xs text-blue-600">NA</div>
                   </div>
-                  <div className="bg-green-50 p-3 rounded-lg border-green-200 border text-center">
-                    <div className="text-2xl font-bold text-green-700">{stats.vertrag}</div>
+                  <div className="bg-green-50 p-2 rounded-lg border-green-200 border text-center">
+                    <div className="text-lg md:text-xl font-bold text-green-700">{stats.vertrag}</div>
                     <div className="text-xs text-green-600">Vertrag</div>
                   </div>
                 </div>
               </div>
 
-              {/* Potenzial Statistik */}
-              <div>
-                <h3 className="text-sm font-medium text-gray-700 mb-2">Potenzial</h3>
-                <div className="grid grid-cols-3 gap-3">
-                  <div className="bg-blue-50 p-3 rounded-lg border-blue-200 border text-center">
-                    <div className="text-2xl font-bold text-blue-700">{stats.kipMoeglich}</div>
-                    <div className="text-xs text-blue-600">🆕 KIP möglich</div>
-                  </div>
-                  <div className="bg-purple-50 p-3 rounded-lg border-purple-200 border text-center">
-                    <div className="text-2xl font-bold text-purple-700">{stats.upsellMoeglich}</div>
-                    <div className="text-xs text-purple-600">📈 Upsell möglich</div>
-                  </div>
-                  <div className="bg-orange-50 p-3 rounded-lg border-orange-200 border text-center">
-                    <div className="text-2xl font-bold text-orange-700">{stats.nurKAS}</div>
-                    <div className="text-xs text-orange-600">📡 Nur KAS</div>
-                  </div>
+              {/* Potenzial - Kompakt */}
+              <div className="grid grid-cols-3 gap-2">
+                <div className="bg-blue-50 p-2 rounded-lg border-blue-200 border text-center">
+                  <div className="text-lg md:text-xl font-bold text-blue-700">{stats.kipMoeglich}</div>
+                  <div className="text-xs text-blue-600">KIP</div>
+                </div>
+                <div className="bg-purple-50 p-2 rounded-lg border-purple-200 border text-center">
+                  <div className="text-lg md:text-xl font-bold text-purple-700">{stats.upsellMoeglich}</div>
+                  <div className="text-xs text-purple-600">Upsell</div>
+                </div>
+                <div className="bg-orange-50 p-2 rounded-lg border-orange-200 border text-center">
+                  <div className="text-lg md:text-xl font-bold text-orange-700">{stats.nurKAS}</div>
+                  <div className="text-xs text-orange-600">KAS</div>
                 </div>
               </div>
             </div>
 
-            {/* Filter */}
-            <div className="bg-white p-4 rounded-lg shadow mb-6">
-              <div className="space-y-3">
+            {/* Suchfeld */}
+            <div className="bg-white p-3 rounded-lg shadow mb-4">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Straße suchen..."
+                  className="w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 text-sm md:text-base"
+                />
+                {searchQuery && (
+                  <button
+                    onClick={() => setSearchQuery('')}
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  >
+                    <X size={18} />
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Filter - Kompakt */}
+            <div className="bg-white p-3 rounded-lg shadow mb-4">
+              <div className="space-y-2">
                 {/* Status Filter */}
-                <div className="flex items-center gap-3 flex-wrap">
-                  <Filter size={20} className="text-gray-600" />
-                  <span className="font-semibold text-gray-800">Status:</span>
-                  <div className="flex gap-2 flex-wrap">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-xs font-semibold text-gray-700">Status:</span>
+                  <div className="flex gap-1 flex-wrap">
                     <button
                       onClick={() => setStatusFilter('ALL')}
-                      className={`px-3 py-1 rounded-lg font-medium transition-colors text-sm ${
-                        statusFilter === 'ALL' 
-                          ? 'bg-gray-700 text-white' 
-                          : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                      className={`px-2 py-1 rounded text-xs font-medium ${
+                        statusFilter === 'ALL' ? 'bg-gray-700 text-white' : 'bg-gray-200 text-gray-700'
                       }`}
                     >
                       Alle
                     </button>
                     <button
                       onClick={() => setStatusFilter('OFFEN')}
-                      className={`px-3 py-1 rounded-lg font-medium transition-colors text-sm ${
-                        statusFilter === 'OFFEN' 
-                          ? 'bg-gray-700 text-white' 
-                          : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                      className={`px-2 py-1 rounded text-xs font-medium ${
+                        statusFilter === 'OFFEN' ? 'bg-gray-700 text-white' : 'bg-gray-200 text-gray-700'
                       }`}
                     >
                       Offen
                     </button>
                     <button
-                      onClick={() => setStatusFilter('KI')}
-                      className={`px-3 py-1 rounded-lg font-medium transition-colors text-sm ${
-                        statusFilter === 'KI' 
-                          ? 'bg-red-600 text-white' 
-                          : 'bg-red-100 text-red-700 hover:bg-red-200'
-                      }`}
-                    >
-                      KI
-                    </button>
-                    <button
-                      onClick={() => setStatusFilter('NM')}
-                      className={`px-3 py-1 rounded-lg font-medium transition-colors text-sm ${
-                        statusFilter === 'NM' 
-                          ? 'bg-yellow-600 text-white' 
-                          : 'bg-yellow-100 text-yellow-700 hover:bg-yellow-200'
-                      }`}
-                    >
-                      NM
-                    </button>
-                    <button
                       onClick={() => setStatusFilter('NA')}
-                      className={`px-3 py-1 rounded-lg font-medium transition-colors text-sm ${
-                        statusFilter === 'NA' 
-                          ? 'bg-blue-600 text-white' 
-                          : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+                      className={`px-2 py-1 rounded text-xs font-medium ${
+                        statusFilter === 'NA' ? 'bg-blue-600 text-white' : 'bg-blue-100 text-blue-700'
                       }`}
                     >
                       NA
                     </button>
                     <button
                       onClick={() => setStatusFilter('VERTRAG')}
-                      className={`px-3 py-1 rounded-lg font-medium transition-colors text-sm ${
-                        statusFilter === 'VERTRAG' 
-                          ? 'bg-green-600 text-white' 
-                          : 'bg-green-100 text-green-700 hover:bg-green-200'
+                      className={`px-2 py-1 rounded text-xs font-medium ${
+                        statusFilter === 'VERTRAG' ? 'bg-green-600 text-white' : 'bg-green-100 text-green-700'
                       }`}
                     >
                       Vertrag
@@ -657,49 +679,40 @@ const GebietsLaufliste = () => {
                 </div>
 
                 {/* Potenzial Filter */}
-                <div className="flex items-center gap-3 flex-wrap">
-                  <Filter size={20} className="text-gray-600" />
-                  <span className="font-semibold text-gray-800">Potenzial:</span>
-                  <div className="flex gap-2 flex-wrap">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-xs font-semibold text-gray-700">Potenzial:</span>
+                  <div className="flex gap-1 flex-wrap">
                     <button
                       onClick={() => setCustomerTypeFilter('ALL')}
-                      className={`px-3 py-1 rounded-lg font-medium transition-colors text-sm ${
-                        customerTypeFilter === 'ALL' 
-                          ? 'bg-gray-700 text-white' 
-                          : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                      className={`px-2 py-1 rounded text-xs font-medium ${
+                        customerTypeFilter === 'ALL' ? 'bg-gray-700 text-white' : 'bg-gray-200 text-gray-700'
                       }`}
                     >
                       Alle
                     </button>
                     <button
                       onClick={() => setCustomerTypeFilter('KIP möglich')}
-                      className={`px-3 py-1 rounded-lg font-medium transition-colors text-sm ${
-                        customerTypeFilter === 'KIP möglich' 
-                          ? 'bg-blue-600 text-white' 
-                          : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+                      className={`px-2 py-1 rounded text-xs font-medium ${
+                        customerTypeFilter === 'KIP möglich' ? 'bg-blue-600 text-white' : 'bg-blue-100 text-blue-700'
                       }`}
                     >
-                      🆕 KIP möglich
+                      🆕 KIP
                     </button>
                     <button
                       onClick={() => setCustomerTypeFilter('Upsell möglich')}
-                      className={`px-3 py-1 rounded-lg font-medium transition-colors text-sm ${
-                        customerTypeFilter === 'Upsell möglich' 
-                          ? 'bg-purple-600 text-white' 
-                          : 'bg-purple-100 text-purple-700 hover:bg-purple-200'
+                      className={`px-2 py-1 rounded text-xs font-medium ${
+                        customerTypeFilter === 'Upsell möglich' ? 'bg-purple-600 text-white' : 'bg-purple-100 text-purple-700'
                       }`}
                     >
-                      📈 Upsell möglich
+                      📈 Upsell
                     </button>
                     <button
                       onClick={() => setCustomerTypeFilter('Nur KAS')}
-                      className={`px-3 py-1 rounded-lg font-medium transition-colors text-sm ${
-                        customerTypeFilter === 'Nur KAS' 
-                          ? 'bg-orange-600 text-white' 
-                          : 'bg-orange-100 text-orange-700 hover:bg-orange-200'
+                      className={`px-2 py-1 rounded text-xs font-medium ${
+                        customerTypeFilter === 'Nur KAS' ? 'bg-orange-600 text-white' : 'bg-orange-100 text-orange-700'
                       }`}
                     >
-                      📡 Nur KAS
+                      📡 KAS
                     </button>
                   </div>
                 </div>
@@ -707,245 +720,274 @@ const GebietsLaufliste = () => {
             </div>
 
             {/* Neue Straße hinzufügen */}
-            <div className="bg-white p-4 rounded-lg shadow mb-6">
-              <h2 className="text-lg font-semibold mb-3 text-gray-800">Neue Straße hinzufügen</h2>
-              <div className="flex gap-3">
+            <div className="bg-white p-3 rounded-lg shadow mb-4">
+              <h2 className="text-base font-semibold mb-2 text-gray-800">Neue Straße</h2>
+              <div className="flex gap-2">
                 <input
                   type="text"
                   value={newStreet}
                   onChange={(e) => setNewStreet(e.target.value)}
-                  placeholder="Straßenname eingeben..."
-                  className="flex-1 p-3 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                  placeholder="Straßenname..."
+                  className="flex-1 p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 text-sm md:text-base"
                   onKeyPress={(e) => e.key === 'Enter' && addStreet()}
                 />
                 <button
                   onClick={addStreet}
-                  className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-1"
                 >
-                  <Plus size={18} />
-                  Straße anlegen
+                  <Plus size={16} />
+                  <span className="hidden sm:inline text-sm">Anlegen</span>
                 </button>
               </div>
             </div>
 
-            {/* Straßenliste */}
-            <div className="bg-white p-4 rounded-lg shadow">
-              <h2 className="text-lg font-semibold mb-4 text-gray-800">
+            {/* Straßenliste - Mit Ein/Ausklappen */}
+            <div className="bg-white p-3 rounded-lg shadow">
+              <h2 className="text-base md:text-lg font-semibold mb-3 text-gray-800">
                 Straßen ({getFilteredStreets().length})
-                {(statusFilter !== 'ALL' || customerTypeFilter !== 'ALL') && (
-                  <span className="text-sm font-normal text-gray-600 ml-2">
-                    (gefiltert)
-                  </span>
-                )}
               </h2>
               
               {currentListData.streets.length === 0 ? (
-                <div className="text-center py-8 text-gray-500">
-                  Noch keine Straßen angelegt. Füge oben eine neue Straße hinzu.
+                <div className="text-center py-6 text-gray-500 text-sm">
+                  Noch keine Straßen. Füge oben eine Straße hinzu.
                 </div>
               ) : getFilteredStreets().length === 0 ? (
-                <div className="text-center py-8 text-gray-500">
-                  Keine Adressen mit den ausgewählten Filtern gefunden.
+                <div className="text-center py-6 text-gray-500 text-sm">
+                  Keine Straßen gefunden.
                 </div>
               ) : (
-                <div className="space-y-4">
-                  {getFilteredStreets().map(street => (
-                    <div key={street.id} className="border-2 border-blue-200 rounded-lg p-4 bg-blue-50">
-                      {/* Straßenkopf */}
-                      <div className="flex items-center justify-between mb-4">
-                        <div className="flex items-center gap-2">
-                          <MapPin size={22} className="text-blue-600" />
-                          <h3 className="text-xl font-bold text-blue-900">{street.name}</h3>
-                          <span className="text-sm text-blue-600 bg-blue-100 px-3 py-1 rounded-full">
-                            {street.addresses.length} {street.addresses.length === 1 ? 'Adresse' : 'Adressen'}
-                          </span>
-                        </div>
-                        <button
-                          onClick={() => deleteStreet(street.id)}
-                          className="p-2 hover:bg-red-100 rounded text-red-600"
-                        >
-                          <Trash2 size={20} />
-                        </button>
-                      </div>
+                <div className="space-y-2">
+                  {getFilteredStreets().map(street => {
+                    const streetStats = getStreetStats(street);
+                    const isExpanded = expandedStreets[street.id];
+                    const completed = streetStats.total - streetStats.offen;
+                    const progressPercent = streetStats.total > 0 ? (completed / streetStats.total) * 100 : 0;
 
-                      {/* Hausnummer hinzufügen */}
-                      {statusFilter === 'ALL' && customerTypeFilter === 'ALL' && (
-                        <div className="bg-white p-3 rounded-lg mb-3 border border-blue-200">
-                          <div className="grid md:grid-cols-4 gap-2 mb-2">
-                            <input
-                              type="text"
-                              value={newHouseNumber.number}
-                              onChange={(e) => setNewHouseNumber({...newHouseNumber, number: e.target.value})}
-                              placeholder="Hausnummer *"
-                              className="p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
-                              onKeyPress={(e) => e.key === 'Enter' && addHouseNumber(street.id)}
-                            />
-                            <select
-                              value={newHouseNumber.customerType}
-                              onChange={(e) => setNewHouseNumber({...newHouseNumber, customerType: e.target.value})}
-                              className="p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
-                            >
-                              <option value="KIP möglich">🆕 KIP möglich</option>
-                              <option value="Upsell möglich">📈 Upsell möglich</option>
-                              <option value="Nur KAS">📡 Nur KAS</option>
-                            </select>
-                            <input
-                              type="text"
-                              value={newHouseNumber.name}
-                              onChange={(e) => setNewHouseNumber({...newHouseNumber, name: e.target.value})}
-                              placeholder="Name (optional)"
-                              className="p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
-                            />
-                            <input
-                              type="text"
-                              value={newHouseNumber.currentContract}
-                              onChange={(e) => setNewHouseNumber({...newHouseNumber, currentContract: e.target.value})}
-                              placeholder="Aktueller Vertrag (optional)"
-                              className="p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
+                    return (
+                      <div key={street.id} className="border-2 border-blue-200 rounded-lg bg-blue-50">
+                        {/* Straßenkopf - Klickbar */}
+                        <div 
+                          className="p-3 cursor-pointer hover:bg-blue-100 transition-colors"
+                          onClick={() => toggleStreetExpanded(street.id)}
+                        >
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-2 flex-1">
+                              {isExpanded ? <ChevronUp size={20} className="text-blue-600" /> : <ChevronDown size={20} className="text-blue-600" />}
+                              <MapPin size={18} className="text-blue-600" />
+                              <h3 className="text-base md:text-lg font-bold text-blue-900">{street.name}</h3>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs md:text-sm text-blue-600 bg-blue-100 px-2 py-1 rounded-full font-semibold">
+                                {completed}/{streetStats.total}
+                              </span>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  deleteStreet(street.id);
+                                }}
+                                className="p-1 hover:bg-red-100 rounded text-red-600"
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Fortschrittsbalken */}
+                          <div className="w-full bg-gray-200 rounded-full h-2 mb-2">
+                            <div 
+                              className="bg-green-500 h-2 rounded-full transition-all duration-300"
+                              style={{ width: `${progressPercent}%` }}
                             />
                           </div>
-                          <button
-                            onClick={() => addHouseNumber(street.id)}
-                            className="w-full p-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center justify-center gap-2 text-sm"
-                          >
-                            <Plus size={16} />
-                            Hausnummer hinzufügen
-                          </button>
+
+                          {/* Schnellstatistik */}
+                          <div className="flex gap-2 text-xs flex-wrap">
+                            {streetStats.offen > 0 && <span className="bg-gray-100 px-2 py-0.5 rounded">⚪ {streetStats.offen} Offen</span>}
+                            {streetStats.na > 0 && <span className="bg-blue-100 px-2 py-0.5 rounded text-blue-700">🔵 {streetStats.na} NA</span>}
+                            {streetStats.vertrag > 0 && <span className="bg-green-100 px-2 py-0.5 rounded text-green-700">✅ {streetStats.vertrag} Vertrag</span>}
+                            {streetStats.ki > 0 && <span className="bg-red-100 px-2 py-0.5 rounded text-red-700">❌ {streetStats.ki} KI</span>}
+                            {streetStats.nm > 0 && <span className="bg-yellow-100 px-2 py-0.5 rounded text-yellow-700">⚠️ {streetStats.nm} NM</span>}
+                          </div>
                         </div>
-                      )}
 
-                      {/* Adressen in dieser Straße */}
-                      {street.addresses.length === 0 ? (
-                        <div className="text-center py-4 text-gray-500 text-sm bg-white rounded-lg">
-                          Noch keine Hausnummern. Füge oben die erste Hausnummer hinzu.
-                        </div>
-                      ) : (
-                        <div className="space-y-2">
-                          {street.addresses.map(address => {
-                            const customerTypeBadge = getCustomerTypeBadge(address.customerType);
-                            return (
-                              <div key={address.id} className="border rounded-lg overflow-hidden bg-white">
-                                {/* Adresskopf */}
-                                <div className={`p-3 ${address.status ? getStatusColor(address.status) : 'bg-white border'}`}>
-                                  <div className="flex items-start justify-between">
-                                    <div className="flex-1">
-                                      <div className="flex items-center gap-2 mb-1 flex-wrap">
-                                        <Home size={16} className="text-gray-600" />
-                                        <span className="font-semibold">
-                                          Nr. {address.number}
-                                        </span>
-                                        <span className={`text-xs px-2 py-1 rounded-full ${customerTypeBadge.color}`}>
-                                          {customerTypeBadge.icon} {customerTypeBadge.label}
-                                        </span>
-                                      </div>
-                                      {address.name && (
-                                        <div className="flex items-center gap-2 text-sm text-gray-600 ml-5">
-                                          <User size={12} />
-                                          {address.name}
-                                        </div>
-                                      )}
-                                      {address.currentContract && (
-                                        <div className="text-sm text-gray-600 ml-5 mt-1">
-                                          📋 {address.currentContract}
-                                        </div>
-                                      )}
-                                      {address.status && (
-                                        <div className="flex items-center gap-2 mt-2 ml-5">
-                                          <Clock size={12} />
-                                          <span className="text-sm font-medium">
-                                            {address.status}
-                                            {address.status === 'VERTRAG' && address.contract && ` (${address.contract})`}
-                                          </span>
-                                        </div>
-                                      )}
-                                    </div>
-                                    <div className="flex gap-2">
-                                      <button
-                                        onClick={() => toggleExpanded(address.id)}
-                                        className="p-1 hover:bg-white/50 rounded"
-                                      >
-                                        {expandedAddresses[address.id] ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
-                                      </button>
-                                      <button
-                                        onClick={() => deleteAddress(street.id, address.id)}
-                                        className="p-1 hover:bg-red-100 rounded text-red-600"
-                                      >
-                                        <Trash2 size={16} />
-                                      </button>
-                                    </div>
-                                  </div>
-
-                                  {/* Status-Buttons */}
-                                  <div className="mt-2 flex flex-wrap gap-2">
-                                    <button
-                                      onClick={() => updateAddressStatus(street.id, address.id, 'KI')}
-                                      className="px-3 py-1 bg-red-500 text-white rounded-lg hover:bg-red-600 text-xs font-medium"
-                                    >
-                                      KI
-                                    </button>
-                                    <button
-                                      onClick={() => updateAddressStatus(street.id, address.id, 'NM')}
-                                      className="px-3 py-1 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 text-xs font-medium"
-                                    >
-                                      NM
-                                    </button>
-                                    <button
-                                      onClick={() => updateAddressStatus(street.id, address.id, 'NA')}
-                                      className="px-3 py-1 bg-blue-500 text-white rounded-lg hover:bg-blue-600 text-xs font-medium"
-                                    >
-                                      NA
-                                    </button>
-                                  </div>
-
-                                  {/* Vertragsfeld */}
-                                  <div className="mt-2">
-                                    <input
-                                      type="text"
-                                      placeholder="Vertrag abgeschlossen - Details + Enter"
-                                      className="w-full p-2 border rounded-lg text-xs focus:ring-2 focus:ring-green-500"
-                                      onKeyPress={(e) => {
-                                        if (e.key === 'Enter' && e.target.value.trim()) {
-                                          updateAddressContract(street.id, address.id, e.target.value);
-                                          e.target.value = '';
-                                        }
-                                      }}
-                                    />
-                                  </div>
+                        {/* Erweiterte Ansicht */}
+                        {isExpanded && (
+                          <div className="border-t border-blue-200 p-3 bg-white">
+                            {/* Hausnummer hinzufügen */}
+                            {statusFilter === 'ALL' && customerTypeFilter === 'ALL' && (
+                              <div className="bg-blue-50 p-2 rounded-lg mb-3 border border-blue-200">
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-2">
+                                  <input
+                                    type="text"
+                                    value={newHouseNumber.number}
+                                    onChange={(e) => setNewHouseNumber({...newHouseNumber, number: e.target.value})}
+                                    placeholder="Nr. *"
+                                    className="p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
+                                    onKeyPress={(e) => e.key === 'Enter' && addHouseNumber(street.id)}
+                                  />
+                                  <select
+                                    value={newHouseNumber.customerType}
+                                    onChange={(e) => setNewHouseNumber({...newHouseNumber, customerType: e.target.value})}
+                                    className="p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 text-xs md:text-sm"
+                                  >
+                                    <option value="KIP möglich">🆕 KIP</option>
+                                    <option value="Upsell möglich">📈 Upsell</option>
+                                    <option value="Nur KAS">📡 KAS</option>
+                                  </select>
+                                  <input
+                                    type="text"
+                                    value={newHouseNumber.name}
+                                    onChange={(e) => setNewHouseNumber({...newHouseNumber, name: e.target.value})}
+                                    placeholder="Name"
+                                    className="p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
+                                  />
+                                  <input
+                                    type="text"
+                                    value={newHouseNumber.currentContract}
+                                    onChange={(e) => setNewHouseNumber({...newHouseNumber, currentContract: e.target.value})}
+                                    placeholder="Vertrag"
+                                    className="p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
+                                  />
                                 </div>
+                                <button
+                                  onClick={() => addHouseNumber(street.id)}
+                                  className="w-full p-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center justify-center gap-1 text-sm"
+                                >
+                                  <Plus size={14} />
+                                  Hausnummer
+                                </button>
+                              </div>
+                            )}
 
-                                {/* Verlauf (erweitert) */}
-                                {expandedAddresses[address.id] && address.statusHistory.length > 0 && (
-                                  <div className="bg-gray-50 p-3 border-t">
-                                    <h4 className="font-semibold text-xs text-gray-700 mb-2">Statusverlauf:</h4>
-                                    <div className="space-y-1">
-                                      {address.statusHistory.map((history, idx) => (
-                                        <div key={idx} className="text-xs flex items-center justify-between gap-2 text-gray-600 bg-white p-2 rounded">
-                                          <div className="flex items-center gap-2">
-                                            <Clock size={12} />
-                                            <span className="font-medium">{formatTimestamp(history.timestamp)}</span>
-                                            <span>→</span>
-                                            <span className="font-semibold">{history.status}</span>
-                                            {history.contract && <span className="text-green-600">({history.contract})</span>}
+                            {/* Adressen */}
+                            {street.addresses.length === 0 ? (
+                              <div className="text-center py-4 text-gray-500 text-sm">
+                                Noch keine Hausnummern.
+                              </div>
+                            ) : (
+                              <div className="space-y-2">
+                                {street.addresses.map(address => {
+                                  const customerTypeBadge = getCustomerTypeBadge(address.customerType);
+                                  return (
+                                    <div key={address.id} className="border rounded-lg overflow-hidden">
+                                      <div className={`p-2 md:p-3 ${address.status ? getStatusColor(address.status) : 'bg-white border'}`}>
+                                        <div className="flex items-start justify-between mb-2">
+                                          <div className="flex-1">
+                                            <div className="flex items-center gap-2 mb-1 flex-wrap">
+                                              <Home size={14} />
+                                              <span className="font-semibold text-sm md:text-base">Nr. {address.number}</span>
+                                              <span className={`text-xs px-1.5 py-0.5 rounded-full ${customerTypeBadge.color}`}>
+                                                {customerTypeBadge.icon} {customerTypeBadge.label}
+                                              </span>
+                                            </div>
+                                            {address.name && (
+                                              <div className="flex items-center gap-1 text-xs text-gray-600 ml-4">
+                                                <User size={10} />
+                                                {address.name}
+                                              </div>
+                                            )}
+                                            {address.currentContract && (
+                                              <div className="text-xs text-gray-600 ml-4 mt-1">
+                                                📋 {address.currentContract}
+                                              </div>
+                                            )}
+                                            {address.status && (
+                                              <div className="flex items-center gap-1 mt-1 ml-4">
+                                                <Clock size={10} />
+                                                <span className="text-xs font-medium">
+                                                  {address.status}
+                                                  {address.status === 'VERTRAG' && address.contract && ` (${address.contract})`}
+                                                </span>
+                                              </div>
+                                            )}
                                           </div>
+                                          <div className="flex gap-1">
+                                            <button
+                                              onClick={() => toggleExpanded(address.id)}
+                                              className="p-1 hover:bg-white/50 rounded"
+                                            >
+                                              {expandedAddresses[address.id] ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                                            </button>
+                                            <button
+                                              onClick={() => deleteAddress(street.id, address.id)}
+                                              className="p-1 hover:bg-red-100 rounded text-red-600"
+                                            >
+                                              <Trash2 size={14} />
+                                            </button>
+                                          </div>
+                                        </div>
+
+                                        {/* Status-Buttons - Kompakt */}
+                                        <div className="flex gap-1 mb-2">
                                           <button
-                                            onClick={() => deleteStatusHistoryEntry(street.id, address.id, idx)}
-                                            className="p-1 hover:bg-red-100 rounded text-red-600"
-                                            title="Eintrag löschen"
+                                            onClick={() => updateAddressStatus(street.id, address.id, 'KI')}
+                                            className="flex-1 px-2 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 text-xs font-medium active:scale-95 transition-transform"
                                           >
-                                            <X size={14} />
+                                            KI
+                                          </button>
+                                          <button
+                                            onClick={() => updateAddressStatus(street.id, address.id, 'NM')}
+                                            className="flex-1 px-2 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 text-xs font-medium active:scale-95 transition-transform"
+                                          >
+                                            NM
+                                          </button>
+                                          <button
+                                            onClick={() => updateAddressStatus(street.id, address.id, 'NA')}
+                                            className="flex-1 px-2 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 text-xs font-medium active:scale-95 transition-transform"
+                                          >
+                                            NA
                                           </button>
                                         </div>
-                                      ))}
+
+                                        {/* Vertragsfeld */}
+                                        <input
+                                          type="text"
+                                          placeholder="Vertrag - Details + Enter"
+                                          className="w-full p-2 border rounded-lg text-xs focus:ring-2 focus:ring-green-500"
+                                          onKeyPress={(e) => {
+                                            if (e.key === 'Enter' && e.target.value.trim()) {
+                                              updateAddressContract(street.id, address.id, e.target.value);
+                                              e.target.value = '';
+                                            }
+                                          }}
+                                        />
+                                      </div>
+
+                                      {/* Verlauf */}
+                                      {expandedAddresses[address.id] && address.statusHistory.length > 0 && (
+                                        <div className="bg-gray-50 p-2 border-t">
+                                          <h4 className="font-semibold text-xs text-gray-700 mb-1">Verlauf:</h4>
+                                          <div className="space-y-1">
+                                            {address.statusHistory.map((history, idx) => (
+                                              <div key={idx} className="text-xs flex items-center justify-between gap-2 text-gray-600 bg-white p-1.5 rounded">
+                                                <div className="flex items-center gap-1 flex-1 min-w-0">
+                                                  <Clock size={10} />
+                                                  <span className="font-medium text-xs truncate">{formatTimestamp(history.timestamp)}</span>
+                                                  <span>→</span>
+                                                  <span className="font-semibold">{history.status}</span>
+                                                  {history.contract && <span className="text-green-600 truncate">({history.contract})</span>}
+                                                </div>
+                                                <button
+                                                  onClick={() => deleteStatusHistoryEntry(street.id, address.id, idx)}
+                                                  className="p-1 hover:bg-red-100 rounded text-red-600 flex-shrink-0"
+                                                >
+                                                  <X size={12} />
+                                                </button>
+                                              </div>
+                                            ))}
+                                          </div>
+                                        </div>
+                                      )}
                                     </div>
-                                  </div>
-                                )}
+                                  );
+                                })}
                               </div>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </div>
-                  ))}
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -956,7 +998,7 @@ const GebietsLaufliste = () => {
           <div className="bg-white p-8 rounded-lg shadow text-center">
             <MapPin size={48} className="mx-auto text-gray-400 mb-4" />
             <h3 className="text-xl font-semibold text-gray-700 mb-2">Noch keine Lauflisten</h3>
-            <p className="text-gray-600 mb-4">Erstelle deine erste Laufliste, um loszulegen!</p>
+            <p className="text-gray-600 mb-4">Erstelle deine erste Laufliste!</p>
             <button
               onClick={() => setShowNewListForm(true)}
               className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2 mx-auto"

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Trash2, MapPin, Clock, Home, User, ChevronDown, ChevronUp, Filter, X, Download, Upload, Search } from 'lucide-react';
+import { Plus, Trash2, MapPin, Clock, Home, User, ChevronDown, ChevronUp, Filter, X, Download, Upload, Search, Check } from 'lucide-react';
 
 const GebietsLaufliste = () => {
   const [lists, setLists] = useState([]);
@@ -11,6 +11,7 @@ const GebietsLaufliste = () => {
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [customerTypeFilter, setCustomerTypeFilter] = useState('ALL');
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedProducts, setSelectedProducts] = useState({});
   
   // Neue Straße und Hausnummer
   const [newStreet, setNewStreet] = useState('');
@@ -113,6 +114,7 @@ const GebietsLaufliste = () => {
       status: null,
       statusHistory: [],
       contract: '',
+      products: [],
       createdAt: new Date().toISOString()
     };
     
@@ -190,7 +192,24 @@ const GebietsLaufliste = () => {
     }));
   };
 
-  const updateAddressContract = (streetId, addressId, contract) => {
+  const toggleProductSelection = (addressId, product) => {
+    setSelectedProducts(prev => {
+      const currentProducts = prev[addressId] || [];
+      const isSelected = currentProducts.includes(product);
+      
+      return {
+        ...prev,
+        [addressId]: isSelected 
+          ? currentProducts.filter(p => p !== product)
+          : [...currentProducts, product]
+      };
+    });
+  };
+
+  const submitContract = (streetId, addressId) => {
+    const products = selectedProducts[addressId] || [];
+    if (products.length === 0) return;
+
     setLists(lists.map(list => {
       if (list.id === currentList) {
         return {
@@ -203,13 +222,13 @@ const GebietsLaufliste = () => {
                   if (addr.id === addressId) {
                     const statusEntry = {
                       status: 'VERTRAG',
-                      contract: contract,
+                      products: products,
                       timestamp: new Date().toISOString()
                     };
                     return {
                       ...addr,
                       status: 'VERTRAG',
-                      contract: contract,
+                      products: products,
                       statusHistory: [...addr.statusHistory, statusEntry]
                     };
                   }
@@ -222,6 +241,12 @@ const GebietsLaufliste = () => {
         };
       }
       return list;
+    }));
+
+    // Reset selection
+    setSelectedProducts(prev => ({
+      ...prev,
+      [addressId]: []
     }));
   };
 
@@ -242,7 +267,7 @@ const GebietsLaufliste = () => {
                       ...addr,
                       statusHistory: newHistory,
                       status: lastEntry ? lastEntry.status : null,
-                      contract: lastEntry && lastEntry.contract ? lastEntry.contract : ''
+                      products: lastEntry && lastEntry.products ? lastEntry.products : []
                     };
                   }
                   return addr;
@@ -339,7 +364,6 @@ const GebietsLaufliste = () => {
   };
 
   const getCustomerTypeBadge = (customerType) => {
-    // Fallback für alte Daten
     if (customerType === 'Neukunde') customerType = 'KIP möglich';
     if (customerType === 'Upsell') customerType = 'Upsell möglich';
     if (customerType === 'nur KAS') customerType = 'Nur KAS';
@@ -376,7 +400,8 @@ const GebietsLaufliste = () => {
   const getStatusStats = () => {
     if (!currentListData || !currentListData.streets) return { 
       total: 0, ki: 0, nm: 0, na: 0, vertrag: 0, offen: 0,
-      kipMoeglich: 0, upsellMoeglich: 0, nurKAS: 0
+      kipMoeglich: 0, upsellMoeglich: 0, nurKAS: 0,
+      productKIP: 0, productKAS: 0, productDIGI: 0, productNET: 0, productMOBILE: 0, productUPSELL: 0
     };
     
     const stats = {
@@ -388,7 +413,13 @@ const GebietsLaufliste = () => {
       offen: 0,
       kipMoeglich: 0,
       upsellMoeglich: 0,
-      nurKAS: 0
+      nurKAS: 0,
+      productKIP: 0,
+      productKAS: 0,
+      productDIGI: 0,
+      productNET: 0,
+      productMOBILE: 0,
+      productUPSELL: 0
     };
     
     currentListData.streets.forEach(street => {
@@ -408,6 +439,18 @@ const GebietsLaufliste = () => {
         if (type === 'KIP möglich') stats.kipMoeglich++;
         else if (type === 'Upsell möglich') stats.upsellMoeglich++;
         else if (type === 'Nur KAS') stats.nurKAS++;
+
+        // Produkt-Statistik
+        if (addr.products && Array.isArray(addr.products)) {
+          addr.products.forEach(product => {
+            if (product === 'KIP') stats.productKIP++;
+            else if (product === 'KAS') stats.productKAS++;
+            else if (product === 'DIGI') stats.productDIGI++;
+            else if (product === 'NET') stats.productNET++;
+            else if (product === 'MOBILE') stats.productMOBILE++;
+            else if (product === 'UPSELL') stats.productUPSELL++;
+          });
+        }
       });
     });
     
@@ -440,7 +483,6 @@ const GebietsLaufliste = () => {
     
     let streets = currentListData.streets;
 
-    // Suchfilter
     if (searchQuery.trim()) {
       streets = streets.filter(street => 
         street.name.toLowerCase().includes(searchQuery.toLowerCase())
@@ -569,6 +611,7 @@ const GebietsLaufliste = () => {
               
               {/* Status */}
               <div className="mb-3">
+                <h3 className="text-xs font-medium text-gray-600 mb-1">Status</h3>
                 <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
                   <div className="bg-gray-50 p-2 rounded-lg border text-center">
                     <div className="text-lg md:text-xl font-bold text-gray-700">{stats.total}</div>
@@ -597,19 +640,53 @@ const GebietsLaufliste = () => {
                 </div>
               </div>
 
-              {/* Potenzial - Kompakt */}
-              <div className="grid grid-cols-3 gap-2">
-                <div className="bg-blue-50 p-2 rounded-lg border-blue-200 border text-center">
-                  <div className="text-lg md:text-xl font-bold text-blue-700">{stats.kipMoeglich}</div>
-                  <div className="text-xs text-blue-600">KIP</div>
+              {/* Potenzial */}
+              <div className="mb-3">
+                <h3 className="text-xs font-medium text-gray-600 mb-1">Potenzial</h3>
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="bg-blue-50 p-2 rounded-lg border-blue-200 border text-center">
+                    <div className="text-lg md:text-xl font-bold text-blue-700">{stats.kipMoeglich}</div>
+                    <div className="text-xs text-blue-600">KIP</div>
+                  </div>
+                  <div className="bg-purple-50 p-2 rounded-lg border-purple-200 border text-center">
+                    <div className="text-lg md:text-xl font-bold text-purple-700">{stats.upsellMoeglich}</div>
+                    <div className="text-xs text-purple-600">Upsell</div>
+                  </div>
+                  <div className="bg-orange-50 p-2 rounded-lg border-orange-200 border text-center">
+                    <div className="text-lg md:text-xl font-bold text-orange-700">{stats.nurKAS}</div>
+                    <div className="text-xs text-orange-600">KAS</div>
+                  </div>
                 </div>
-                <div className="bg-purple-50 p-2 rounded-lg border-purple-200 border text-center">
-                  <div className="text-lg md:text-xl font-bold text-purple-700">{stats.upsellMoeglich}</div>
-                  <div className="text-xs text-purple-600">Upsell</div>
-                </div>
-                <div className="bg-orange-50 p-2 rounded-lg border-orange-200 border text-center">
-                  <div className="text-lg md:text-xl font-bold text-orange-700">{stats.nurKAS}</div>
-                  <div className="text-xs text-orange-600">KAS</div>
+              </div>
+
+              {/* Verkaufte Produkte */}
+              <div>
+                <h3 className="text-xs font-medium text-gray-600 mb-1">Verkaufte Produkte</h3>
+                <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
+                  <div className="bg-indigo-50 p-2 rounded-lg border-indigo-200 border text-center">
+                    <div className="text-lg md:text-xl font-bold text-indigo-700">{stats.productKIP}</div>
+                    <div className="text-xs text-indigo-600">KIP</div>
+                  </div>
+                  <div className="bg-pink-50 p-2 rounded-lg border-pink-200 border text-center">
+                    <div className="text-lg md:text-xl font-bold text-pink-700">{stats.productKAS}</div>
+                    <div className="text-xs text-pink-600">KAS</div>
+                  </div>
+                  <div className="bg-cyan-50 p-2 rounded-lg border-cyan-200 border text-center">
+                    <div className="text-lg md:text-xl font-bold text-cyan-700">{stats.productDIGI}</div>
+                    <div className="text-xs text-cyan-600">DIGI</div>
+                  </div>
+                  <div className="bg-teal-50 p-2 rounded-lg border-teal-200 border text-center">
+                    <div className="text-lg md:text-xl font-bold text-teal-700">{stats.productNET}</div>
+                    <div className="text-xs text-teal-600">NET</div>
+                  </div>
+                  <div className="bg-amber-50 p-2 rounded-lg border-amber-200 border text-center">
+                    <div className="text-lg md:text-xl font-bold text-amber-700">{stats.productMOBILE}</div>
+                    <div className="text-xs text-amber-600">MOBILE</div>
+                  </div>
+                  <div className="bg-violet-50 p-2 rounded-lg border-violet-200 border text-center">
+                    <div className="text-lg md:text-xl font-bold text-violet-700">{stats.productUPSELL}</div>
+                    <div className="text-xs text-violet-600">UPSELL</div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -741,7 +818,7 @@ const GebietsLaufliste = () => {
               </div>
             </div>
 
-            {/* Straßenliste - Mit Ein/Ausklappen */}
+            {/* Straßenliste */}
             <div className="bg-white p-3 rounded-lg shadow">
               <h2 className="text-base md:text-lg font-semibold mb-3 text-gray-800">
                 Straßen ({getFilteredStreets().length})
@@ -868,6 +945,8 @@ const GebietsLaufliste = () => {
                               <div className="space-y-2">
                                 {street.addresses.map(address => {
                                   const customerTypeBadge = getCustomerTypeBadge(address.customerType);
+                                  const addressProducts = selectedProducts[address.id] || [];
+                                  
                                   return (
                                     <div key={address.id} className="border rounded-lg overflow-hidden">
                                       <div className={`p-2 md:p-3 ${address.status ? getStatusColor(address.status) : 'bg-white border'}`}>
@@ -892,11 +971,13 @@ const GebietsLaufliste = () => {
                                               </div>
                                             )}
                                             {address.status && (
-                                              <div className="flex items-center gap-1 mt-1 ml-4">
+                                              <div className="flex items-center gap-1 mt-1 ml-4 flex-wrap">
                                                 <Clock size={10} />
                                                 <span className="text-xs font-medium">
                                                   {address.status}
-                                                  {address.status === 'VERTRAG' && address.contract && ` (${address.contract})`}
+                                                  {address.status === 'VERTRAG' && address.products && address.products.length > 0 && (
+                                                    <span className="ml-1">({address.products.join(', ')})</span>
+                                                  )}
                                                 </span>
                                               </div>
                                             )}
@@ -939,18 +1020,37 @@ const GebietsLaufliste = () => {
                                           </button>
                                         </div>
 
-                                        {/* Vertragsfeld */}
-                                        <input
-                                          type="text"
-                                          placeholder="Vertrag - Details + Enter"
-                                          className="w-full p-2 border rounded-lg text-xs focus:ring-2 focus:ring-green-500"
-                                          onKeyPress={(e) => {
-                                            if (e.key === 'Enter' && e.target.value.trim()) {
-                                              updateAddressContract(street.id, address.id, e.target.value);
-                                              e.target.value = '';
-                                            }
-                                          }}
-                                        />
+                                        {/* Produkt-Auswahl Buttons */}
+                                        <div className="mb-2">
+                                          <div className="text-xs font-medium text-gray-700 mb-1">Vertrag - Produkte wählen:</div>
+                                          <div className="grid grid-cols-3 gap-1 mb-2">
+                                            {['KIP', 'KAS', 'DIGI', 'NET', 'MOBILE', 'UPSELL'].map(product => (
+                                              <button
+                                                key={product}
+                                                onClick={() => toggleProductSelection(address.id, product)}
+                                                className={`p-2 rounded-lg text-xs font-medium transition-all flex items-center justify-center gap-1 ${
+                                                  addressProducts.includes(product)
+                                                    ? 'bg-green-500 text-white'
+                                                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                                                }`}
+                                              >
+                                                {addressProducts.includes(product) && <Check size={12} />}
+                                                {product}
+                                              </button>
+                                            ))}
+                                          </div>
+                                          <button
+                                            onClick={() => submitContract(street.id, address.id)}
+                                            disabled={addressProducts.length === 0}
+                                            className={`w-full p-2 rounded-lg text-xs font-medium flex items-center justify-center gap-1 ${
+                                              addressProducts.length === 0
+                                                ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                                                : 'bg-green-600 text-white hover:bg-green-700'
+                                            }`}
+                                          >
+                                            ✅ Vertrag senden ({addressProducts.length})
+                                          </button>
+                                        </div>
                                       </div>
 
                                       {/* Verlauf */}
@@ -965,7 +1065,9 @@ const GebietsLaufliste = () => {
                                                   <span className="font-medium text-xs truncate">{formatTimestamp(history.timestamp)}</span>
                                                   <span>→</span>
                                                   <span className="font-semibold">{history.status}</span>
-                                                  {history.contract && <span className="text-green-600 truncate">({history.contract})</span>}
+                                                  {history.products && history.products.length > 0 && (
+                                                    <span className="text-green-600 truncate">({history.products.join(', ')})</span>
+                                                  )}
                                                 </div>
                                                 <button
                                                   onClick={() => deleteStatusHistoryEntry(street.id, address.id, idx)}
