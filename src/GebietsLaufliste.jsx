@@ -770,12 +770,12 @@ const GebietsLaufliste = () => {
 
   <div class="section">
     <div class="section-title">PRODUKTE VERKAUFT</div>
-    <div class="info-line">📞 KIP: <span class="highlight">${stats.productKIP}x</span></div>
-    <div class="info-line">📱 MOBILE: <span class="highlight">${stats.productMOBILE}x</span></div>
-    <div class="info-line">📺 DIGI: <span class="highlight">${stats.productDIGI}x</span></div>
-    <div class="info-line">📡 KAS: <span class="highlight">${stats.productKAS}x</span></div>
-    <div class="info-line">🔗 NET: <span class="highlight">${stats.productNET}x</span></div>
-    <div class="info-line">📈 UPSELL: <span class="highlight">${stats.productUPSELL}x</span></div>
+    <div class="info-line">📞 <span class="highlight">${stats.productKIP}x</span> KIP</div>
+    <div class="info-line">📡 <span class="highlight">${stats.productKAS}x</span>KAS</div>
+    <div class="info-line">📺 <span class="highlight">${stats.productDIGI}x</span> DIGI</div>
+    <div class="info-line">🔗 <span class="highlight">${stats.productNET}x</span> NET</div>
+    <div class="info-line">📱 <span class="highlight">${stats.productMOBILE}x</span> MOBILE</div>
+    <div class="info-line">📈 <span class="highlight">${stats.productUPSELL}x</span> UPSELL</div>
   </div>
 
   <div class="section">
