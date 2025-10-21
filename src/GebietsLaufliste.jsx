@@ -29,28 +29,8 @@ const GebietsLaufliste = () => {
   // Lauflisten aus localStorage laden
   useEffect(() => {
     const savedLists = localStorage.getItem('gebietsLauflisten');
-    const savedBackup = localStorage.getItem('gebietsLauflistenBackup');
-    
     if (savedLists) {
       const parsed = JSON.parse(savedLists);
-      
-      // Prüfe ob Backup neuer ist
-      if (savedBackup) {
-        const backup = JSON.parse(savedBackup);
-        const backupDate = new Date(backup.timestamp);
-        const currentDate = parsed.lastModified ? new Date(parsed.lastModified) : new Date(0);
-        
-        if (backupDate > currentDate && backup.data) {
-          if (window.confirm('🔄 Backup gefunden! Möchtest du das Backup wiederherstellen?')) {
-            setLists(backup.data);
-            if (backup.data.length > 0 && !currentList) {
-              setCurrentList(backup.data[0].id);
-            }
-            return;
-          }
-        }
-      }
-      
       setLists(parsed);
       if (parsed.length > 0 && !currentList) {
         setCurrentList(parsed[0].id);
@@ -58,18 +38,10 @@ const GebietsLaufliste = () => {
     }
   }, []);
 
-  // Lauflisten in localStorage speichern + Silent Backup
+  // Lauflisten in localStorage speichern
   useEffect(() => {
     if (lists.length > 0) {
-      // Hauptspeicher
       localStorage.setItem('gebietsLauflisten', JSON.stringify(lists));
-      
-      // Silent Backup
-      const backup = {
-        timestamp: new Date().toISOString(),
-        data: lists
-      };
-      localStorage.setItem('gebietsLauflistenBackup', JSON.stringify(backup));
     }
   }, [lists]);
 
@@ -724,7 +696,7 @@ const GebietsLaufliste = () => {
     const listTitle = currentListData?.title || 'Laufliste';
     const today = new Date().toLocaleDateString('de-DE');
     
-    const htmlContent = `
+        const htmlContent = `
 <!DOCTYPE html>
 <html>
 <head>
@@ -732,128 +704,85 @@ const GebietsLaufliste = () => {
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>${listTitle} - Übersicht</title>
   <style>
-    body { font-family: Arial, sans-serif; padding: 20px; max-width: 800px; margin: 0 auto; }
-    h1 { color: #2563eb; border-bottom: 3px solid #2563eb; padding-bottom: 10px; }
-    .section { margin: 20px 0; padding: 15px; background: #f3f4f6; border-radius: 8px; }
-    .section h2 { margin-top: 0; color: #374151; font-size: 16px; }
-    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
-    .stat { background: white; padding: 12px; border-radius: 6px; text-align: center; border: 2px solid #e5e7eb; }
-    .stat-value { font-size: 24px; font-weight: bold; color: #1f2937; }
-    .stat-label { font-size: 12px; color: #6b7280; margin-top: 5px; }
-    .header-info { background: #dbeafe; padding: 10px; border-radius: 6px; margin-bottom: 20px; }
-    .header-info p { margin: 5px 0; }
-    @media print { body { padding: 10px; } }
+    body { 
+      font-family: 'Courier New', monospace; 
+      padding: 30px; 
+      max-width: 800px; 
+      margin: 0 auto;
+      line-height: 1.6;
+    }
+    .header {
+      text-align: center;
+      margin-bottom: 30px;
+      font-weight: bold;
+    }
+    .divider {
+      margin: 20px 0;
+      color: #666;
+    }
+    .section {
+      margin: 25px 0;
+    }
+    .section-title {
+      font-weight: bold;
+      font-size: 16px;
+      margin-bottom: 10px;
+    }
+    .info-line {
+      margin: 5px 0;
+      padding-left: 0;
+    }
+    .highlight {
+      font-weight: bold;
+      color: #000;
+    }
+    @media print {
+      body { padding: 20px; }
+    }
   </style>
 </head>
 <body>
-  <h1>📋 LAUFLISTE ÜBERSICHT</h1>
+  <div class="header">
+    📋 LAUFLISTE ÜBERSICHT
+  </div>
+  <div class="divider">━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</div>
   
-  <div class="header-info">
-    <p><strong>Gebiet:</strong> ${listTitle}</p>
-    <p><strong>Datum:</strong> ${today}</p>
-    <p><strong>Vertriebler:</strong> ${userName || 'Nicht angegeben'}</p>
+  <div class="info-line"><strong>Gebiet:</strong> ${listTitle}</div>
+  <div class="info-line"><strong>Datum:</strong> ${today}</div>
+  <div class="info-line"><strong>Vertriebler:</strong> ${userName || 'Nicht angegeben'}</div>
+  
+  <div class="divider">━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</div>
+  
+  <div class="section">
+    <div class="section-title">FORTSCHRITT</div>
+    <div class="divider">━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</div>
+    <div class="info-line">🚪 Geklingelt: <span class="highlight">${stats.geklingelt}/${stats.total}</span> Türen (<span class="highlight">${Math.round((stats.geklingelt / stats.total) * 100)}%</span>)</div>
   </div>
 
   <div class="section">
-    <h2>FORTSCHRITT</h2>
-    <div class="grid">
-      <div class="stat">
-        <div class="stat-value">${stats.geklingelt}/${stats.total}</div>
-        <div class="stat-label">Abgearbeitet</div>
-      </div>
-      <div class="stat">
-        <div class="stat-value">${stats.geklingelt}</div>
-        <div class="stat-label">🚪 Geklingelt</div>
-      </div>
-      <div class="stat">
-        <div class="stat-value">${Math.round((stats.geklingelt / stats.total) * 100)}%</div>
-        <div class="stat-label">Fortschritt</div>
-      </div>
-    </div>
+    <div class="section-title">STATUS</div>
+    <div class="info-line">✅ Verträge: <span class="highlight">${stats.vertrag}</span></div>
+    <div class="info-line">🔵 NA: <span class="highlight">${stats.na}</span></div>
+    <div class="info-line">❌ KI: <span class="highlight">${stats.ki}</span></div>
+    <div class="info-line">⚠️ NM: <span class="highlight">${stats.nm}</span></div>
+    <div class="info-line">⚪ Offen: <span class="highlight">${stats.offen}</span> potenzielle Kunden</div>
   </div>
 
   <div class="section">
-    <h2>STATUS</h2>
-    <div class="grid">
-      <div class="stat">
-        <div class="stat-value" style="color: #16a34a;">${stats.vertrag}</div>
-        <div class="stat-label">✅ Verträge</div>
-      </div>
-      <div class="stat">
-        <div class="stat-value" style="color: #3b82f6;">${stats.na}</div>
-        <div class="stat-label">🔵 NA</div>
-      </div>
-      <div class="stat">
-        <div class="stat-value" style="color: #ef4444;">${stats.ki}</div>
-        <div class="stat-label">❌ KI</div>
-      </div>
-      <div class="stat">
-        <div class="stat-value" style="color: #eab308;">${stats.nm}</div>
-        <div class="stat-label">⚠️ NM</div>
-      </div>
-      <div class="stat">
-        <div class="stat-value" style="color: #6b7280;">${stats.offen}</div>
-        <div class="stat-label">⚪ Offen</div>
-      </div>
-    </div>
+    <div class="section-title">PRODUKTE VERKAUFT</div>
+    <div class="info-line">📞 KIP: <span class="highlight">${stats.productKIP}x</span></div>
+    <div class="info-line">📱 MOBILE: <span class="highlight">${stats.productMOBILE}x</span></div>
+    <div class="info-line">📺 DIGI: <span class="highlight">${stats.productDIGI}x</span></div>
+    <div class="info-line">📡 KAS: <span class="highlight">${stats.productKAS}x</span></div>
+    <div class="info-line">🔗 NET: <span class="highlight">${stats.productNET}x</span></div>
+    <div class="info-line">📈 UPSELL: <span class="highlight">${stats.productUPSELL}x</span></div>
   </div>
 
   <div class="section">
-    <h2>PRODUKTE VERKAUFT</h2>
-    <div class="grid">
-      <div class="stat">
-        <div class="stat-value">${stats.productKIP}</div>
-        <div class="stat-label">📦 KIP</div>
-      </div>
-      <div class="stat">
-        <div class="stat-value">${stats.productMOBILE}</div>
-        <div class="stat-label">📱 MOBILE</div>
-      </div>
-      <div class="stat">
-        <div class="stat-value">${stats.productDIGI}</div>
-        <div class="stat-label">📺 DIGI</div>
-      </div>
-      <div class="stat">
-        <div class="stat-value">${stats.productKAS}</div>
-        <div class="stat-label">📡 KAS</div>
-      </div>
-      <div class="stat">
-        <div class="stat-value">${stats.productNET}</div>
-        <div class="stat-label">🔗 NET</div>
-      </div>
-      <div class="stat">
-        <div class="stat-value">${stats.productUPSELL}</div>
-        <div class="stat-label">📈 UPSELL</div>
-      </div>
-    </div>
-  </div>
-
-  <div class="section">
-    <h2>ZEITRAUM</h2>
-    <div class="grid">
-      <div class="stat">
-        <div class="stat-value">${stats.heute.geklingelt}</div>
-        <div class="stat-label">📅 Heute - Türen</div>
-      </div>
-      <div class="stat">
-        <div class="stat-value" style="color: #16a34a;">${stats.heute.vertrag}</div>
-        <div class="stat-label">📅 Heute - Verträge</div>
-      </div>
-      <div class="stat">
-        <div class="stat-value">${stats.gestern.geklingelt}</div>
-        <div class="stat-label">📅 Gestern - Türen</div>
-      </div>
-      <div class="stat">
-        <div class="stat-value" style="color: #16a34a;">${stats.gestern.vertrag}</div>
-        <div class="stat-label">📅 Gestern - Verträge</div>
-      </div>
-      <div class="stat">
-      <div class="stat-label">📅 Vorgestern - Türen</div>
-      </div>
-      <div class="stat">
-        <div class="stat-value" style="color: #16a34a;">${stats.vorgestern.vertrag}</div>
-        <div class="stat-label">📅 Vorgestern - Verträge</div>
-      </div>
+    <div class="section-title">GESAMT PUNKTE</div>
+    <div class="info-line">Gesamtpunktzahl: <span class="highlight" style="font-size: 18px;">${stats.productKIP + stats.productDIGI + stats.productNET + stats.productMOBILE}</span> Punkte</div>
+    <div class="info-line" style="font-size: 12px; color: #666; margin-top: 10px;">
+      (Gewertet: KIP + DIGI + NET + MOBILE = je 1 Punkt)
     </div>
   </div>
 
@@ -863,15 +792,7 @@ const GebietsLaufliste = () => {
     
     const blob = new Blob([htmlContent], { type: 'text/html' });
     const url = URL.createObjectURL(blob);
-    const newWindow = window.open(url, '_blank');
-    
-    if (newWindow) {
-      newWindow.onload = () => {
-        setTimeout(() => {
-          newWindow.print();
-        }, 250);
-      };
-    }
+    window.open(url, '_blank');
   };
 
   const stats = getStatusStats();
@@ -903,9 +824,7 @@ const GebietsLaufliste = () => {
               <input
                 type="text"
                 value={userName}
-                onChange={(e) => setUserName(e.target.value)}
-                placeholder="Dein Name (für PDF-Export)"
-                className="flex-1 p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
+                onChange={(e) => setUserName(e.target.value)}className="flex-1 p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
               />
             </div>
           </div>
@@ -1004,7 +923,6 @@ const GebietsLaufliste = () => {
                   className="hidden"
                 />
               </label>
-              <span className="text-xs text-gray-600 flex items-center">💾 Auto-Backup aktiv</span>
             </div>
           </div>
 
