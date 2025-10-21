@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Trash2, MapPin, Clock, Home, User, ChevronDown, ChevronUp, Filter, X, Download, Upload, Search, Check } from 'lucide-react';
+import { Plus, Trash2, MapPin, Clock, Home, User, ChevronDown, ChevronUp, Filter, X, Download, Upload, Search, Check, Edit2, FileText } from 'lucide-react';
 
 const GebietsLaufliste = () => {
   const [lists, setLists] = useState([]);
@@ -12,6 +12,8 @@ const GebietsLaufliste = () => {
   const [customerTypeFilter, setCustomerTypeFilter] = useState('ALL');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedProducts, setSelectedProducts] = useState({});
+  const [editingAddress, setEditingAddress] = useState(null);
+  const [editForm, setEditForm] = useState({ number: '', name: '', currentContract: '', customerType: '' });
   
   // Neue Straße und Hausnummer
   const [newStreet, setNewStreet] = useState('');
@@ -26,8 +28,28 @@ const GebietsLaufliste = () => {
   // Lauflisten aus localStorage laden
   useEffect(() => {
     const savedLists = localStorage.getItem('gebietsLauflisten');
+    const savedBackup = localStorage.getItem('gebietsLauflistenBackup');
+    
     if (savedLists) {
       const parsed = JSON.parse(savedLists);
+      
+      // Prüfe ob Backup neuer ist
+      if (savedBackup) {
+        const backup = JSON.parse(savedBackup);
+        const backupDate = new Date(backup.timestamp);
+        const currentDate = parsed.lastModified ? new Date(parsed.lastModified) : new Date(0);
+        
+        if (backupDate > currentDate && backup.data) {
+          if (window.confirm('🔄 Backup gefunden! Möchtest du das Backup wiederherstellen?')) {
+            setLists(backup.data);
+            if (backup.data.length > 0 && !currentList) {
+              setCurrentList(backup.data[0].id);
+            }
+            return;
+          }
+        }
+      }
+      
       setLists(parsed);
       if (parsed.length > 0 && !currentList) {
         setCurrentList(parsed[0].id);
@@ -35,10 +57,18 @@ const GebietsLaufliste = () => {
     }
   }, []);
 
-  // Lauflisten in localStorage speichern
+  // Lauflisten in localStorage speichern + Silent Backup
   useEffect(() => {
     if (lists.length > 0) {
+      // Hauptspeicher
       localStorage.setItem('gebietsLauflisten', JSON.stringify(lists));
+      
+      // Silent Backup
+      const backup = {
+        timestamp: new Date().toISOString(),
+        data: lists
+      };
+      localStorage.setItem('gebietsLauflistenBackup', JSON.stringify(backup));
     }
   }, [lists]);
 
@@ -59,7 +89,7 @@ const GebietsLaufliste = () => {
   };
 
   const deleteList = (listId) => {
-    if (window.confirm('Liste wirklich löschen?')) {
+    if (window.confirm('⚠️ Liste wirklich löschen? Alle Daten gehen verloren!')) {
       setLists(lists.filter(l => l.id !== listId));
       if (currentList === listId) {
         setCurrentList(lists.length > 1 ? lists[0].id : null);
@@ -91,15 +121,20 @@ const GebietsLaufliste = () => {
   };
 
   const deleteStreet = (streetId) => {
-    setLists(lists.map(list => {
-      if (list.id === currentList) {
-        return {
-          ...list,
-          streets: list.streets.filter(s => s.id !== streetId)
-        };
-      }
-      return list;
-    }));
+    const street = currentListData?.streets.find(s => s.id === streetId);
+    const addressCount = street?.addresses.length || 0;
+    
+    if (window.confirm(`⚠️ Straße "${street?.name}" mit ${addressCount} Hausnummer(n) wirklich löschen?`)) {
+      setLists(lists.map(list => {
+        if (list.id === currentList) {
+          return {
+            ...list,
+            streets: list.streets.filter(s => s.id !== streetId)
+          };
+        }
+        return list;
+      }));
+    }
   };
 
   const addHouseNumber = (streetId) => {
@@ -140,15 +175,65 @@ const GebietsLaufliste = () => {
   };
 
   const deleteAddress = (streetId, addressId) => {
+    if (window.confirm('⚠️ Hausnummer wirklich löschen?')) {
+      setLists(lists.map(list => {
+        if (list.id === currentList) {
+          return {
+            ...list,
+            streets: list.streets.map(street => {
+              if (street.id === streetId) {
+                return {
+                  ...street,
+                  addresses: street.addresses.filter(a => a.id !== addressId)
+                };
+              }
+              return street;
+            })
+          };
+        }
+        return list;
+      }));
+    }
+  };
+
+  const startEditAddress = (streetId, address) => {
+    setEditingAddress({ streetId, addressId: address.id });
+    setEditForm({
+      number: address.number,
+      name: address.name || '',
+      currentContract: address.currentContract || '',
+      customerType: address.customerType
+    });
+  };
+
+  const cancelEdit = () => {
+    setEditingAddress(null);
+    setEditForm({ number: '', name: '', currentContract: '', customerType: '' });
+  };
+
+  const saveEdit = () => {
+    if (!editForm.number.trim()) return;
+    
     setLists(lists.map(list => {
       if (list.id === currentList) {
         return {
           ...list,
           streets: list.streets.map(street => {
-            if (street.id === streetId) {
+            if (street.id === editingAddress.streetId) {
               return {
                 ...street,
-                addresses: street.addresses.filter(a => a.id !== addressId)
+                addresses: street.addresses.map(addr => {
+                  if (addr.id === editingAddress.addressId) {
+                    return {
+                      ...addr,
+                      number: editForm.number,
+                      name: editForm.name,
+                      currentContract: editForm.currentContract,
+                      customerType: editForm.customerType
+                    };
+                  }
+                  return addr;
+                })
               };
             }
             return street;
@@ -157,6 +242,8 @@ const GebietsLaufliste = () => {
       }
       return list;
     }));
+    
+    cancelEdit();
   };
 
   const updateAddressStatus = (streetId, addressId, status) => {
@@ -190,51 +277,57 @@ const GebietsLaufliste = () => {
       }
       return list;
     }));
+    
+    // Statusverlauf automatisch öffnen
+    setExpandedAddresses(prev => ({
+      ...prev,
+      [addressId]: true
+    }));
   };
 
-const toggleProductSelection = (addressId, product) => {
-  setSelectedProducts(prev => {
-    const currentProducts = prev[addressId] || [];
-    const count = currentProducts.filter(p => p === product).length;
-    
-    // Limits prüfen
-    if (product === 'MOBILE' && count >= 5) return prev;
-    if (product === 'NET' && count >= 2) return prev;
-    
-    // Andere Produkte: nur 1x
-    if (!['MOBILE', 'NET'].includes(product)) {
-      const isSelected = currentProducts.includes(product);
+  const toggleProductSelection = (addressId, product) => {
+    setSelectedProducts(prev => {
+      const currentProducts = prev[addressId] || [];
+      const count = currentProducts.filter(p => p === product).length;
+      
+      // Limits prüfen
+      if (product === 'MOBILE' && count >= 5) return prev;
+      if (product === 'NET' && count >= 2) return prev;
+      
+      // Andere Produkte: nur 1x
+      if (!['MOBILE', 'NET'].includes(product)) {
+        const isSelected = currentProducts.includes(product);
+        return {
+          ...prev,
+          [addressId]: isSelected 
+            ? currentProducts.filter(p => p !== product)
+            : [...currentProducts, product]
+        };
+      }
+      
+      // MOBILE/NET: Hinzufügen
       return {
         ...prev,
-        [addressId]: isSelected 
-          ? currentProducts.filter(p => p !== product)
-          : [...currentProducts, product]
+        [addressId]: [...currentProducts, product]
       };
-    }
-    
-    // MOBILE/NET: Hinzufügen
-    return {
-      ...prev,
-      [addressId]: [...currentProducts, product]
-    };
-  });
-};
+    });
+  };
 
-const removeProduct = (addressId, product) => {
-  setSelectedProducts(prev => {
-    const currentProducts = prev[addressId] || [];
-    const index = currentProducts.indexOf(product);
-    if (index === -1) return prev;
-    
-    const newProducts = [...currentProducts];
-    newProducts.splice(index, 1);
-    
-    return {
-      ...prev,
-      [addressId]: newProducts
-    };
-  });
-};
+  const removeProduct = (addressId, product) => {
+    setSelectedProducts(prev => {
+      const currentProducts = prev[addressId] || [];
+      const index = currentProducts.indexOf(product);
+      if (index === -1) return prev;
+      
+      const newProducts = [...currentProducts];
+      newProducts.splice(index, 1);
+      
+      return {
+        ...prev,
+        [addressId]: newProducts
+      };
+    });
+  };
 
   const submitContract = (streetId, addressId) => {
     const products = selectedProducts[addressId] || [];
@@ -273,10 +366,15 @@ const removeProduct = (addressId, product) => {
       return list;
     }));
 
-    // Reset selection
+    // Reset selection und Verlauf öffnen
     setSelectedProducts(prev => ({
       ...prev,
       [addressId]: []
+    }));
+    
+    setExpandedAddresses(prev => ({
+      ...prev,
+      [addressId]: true
     }));
   };
 
@@ -402,6 +500,7 @@ const removeProduct = (addressId, product) => {
       case 'KIP möglich': return { icon: '🆕', color: 'bg-blue-100 text-blue-800', label: 'KIP' };
       case 'Upsell möglich': return { icon: '📈', color: 'bg-purple-100 text-purple-800', label: 'Upsell' };
       case 'Nur KAS': return { icon: '📡', color: 'bg-orange-100 text-orange-800', label: 'KAS' };
+      case 'Sonstiges': return { icon: '🔸', color: 'bg-gray-100 text-gray-800', label: 'Sonstiges' };
       default: return { icon: '🆕', color: 'bg-blue-100 text-blue-800', label: 'KIP' };
     }
   };
@@ -430,9 +529,17 @@ const removeProduct = (addressId, product) => {
   const getStatusStats = () => {
     if (!currentListData || !currentListData.streets) return { 
       total: 0, ki: 0, nm: 0, na: 0, vertrag: 0, offen: 0,
-      kipMoeglich: 0, upsellMoeglich: 0, nurKAS: 0,
-      productKIP: 0, productKAS: 0, productDIGI: 0, productNET: 0, productMOBILE: 0, productUPSELL: 0
+      kipMoeglich: 0, upsellMoeglich: 0, nurKAS: 0, sonstiges: 0,
+      productKIP: 0, productKAS: 0, productDIGI: 0, productNET: 0, productMOBILE: 0, productUPSELL: 0,
+      geklingelt: 0, heute: { geklingelt: 0, vertrag: 0 }, gestern: { geklingelt: 0, vertrag: 0 }, vorgestern: { geklingelt: 0, vertrag: 0 }
     };
+    
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    const dayBeforeYesterday = new Date(today);
+    dayBeforeYesterday.setDate(dayBeforeYesterday.getDate() - 2);
     
     const stats = {
       total: 0,
@@ -444,23 +551,54 @@ const removeProduct = (addressId, product) => {
       kipMoeglich: 0,
       upsellMoeglich: 0,
       nurKAS: 0,
+      sonstiges: 0,
       productKIP: 0,
       productKAS: 0,
       productDIGI: 0,
       productNET: 0,
       productMOBILE: 0,
-      productUPSELL: 0
+      productUPSELL: 0,
+      geklingelt: 0,
+      heute: { geklingelt: 0, vertrag: 0 },
+      gestern: { geklingelt: 0, vertrag: 0 },
+      vorgestern: { geklingelt: 0, vertrag: 0 }
     };
     
     currentListData.streets.forEach(street => {
       street.addresses.forEach(addr => {
         stats.total++;
+        
+        // Status-Statistik
         if (addr.status === 'KI') stats.ki++;
         else if (addr.status === 'NM') stats.nm++;
         else if (addr.status === 'NA') stats.na++;
         else if (addr.status === 'VERTRAG') stats.vertrag++;
         else stats.offen++;
 
+        // Geklingelte Türen (alle mit Status)
+        if (addr.status) {
+          stats.geklingelt++;
+          
+          // Zeitbasierte Statistik
+          if (addr.statusHistory && addr.statusHistory.length > 0) {
+            const lastStatus = addr.statusHistory[addr.statusHistory.length - 1];
+            const statusDate = new Date(lastStatus.timestamp);
+            const statusDay = new Date(statusDate.getFullYear(), statusDate.getMonth(), statusDate.getDate());
+            
+            if (statusDay.getTime() === today.getTime()) {
+              stats.heute.geklingelt++;
+              if (addr.status === 'VERTRAG') stats.heute.vertrag++;
+            } else if (statusDay.getTime() === yesterday.getTime()) {
+              stats.gestern.geklingelt++;
+              if (addr.status === 'VERTRAG') stats.gestern.vertrag++;
+            } else if (statusDay.getTime() === dayBeforeYesterday.getTime()) {
+              stats.vorgestern.geklingelt++;
+              if (addr.status === 'VERTRAG') stats.vorgestern.vertrag++;
+            }
+          }
+        }
+
+        // Potenzial-Statistik
         let type = addr.customerType;
         if (type === 'Neukunde') type = 'KIP möglich';
         if (type === 'Upsell') type = 'Upsell möglich';
@@ -469,6 +607,7 @@ const removeProduct = (addressId, product) => {
         if (type === 'KIP möglich') stats.kipMoeglich++;
         else if (type === 'Upsell möglich') stats.upsellMoeglich++;
         else if (type === 'Nur KAS') stats.nurKAS++;
+        else if (type === 'Sonstiges') stats.sonstiges++;
 
         // Produkt-Statistik
         if (addr.products && Array.isArray(addr.products)) {
@@ -531,618 +670,899 @@ const removeProduct = (addressId, product) => {
       .filter(street => street.addresses.length > 0);
   };
 
+  // PDF Export Funktion
+  const exportPDF = () => {
+    const stats = getStatusStats();
+    const listTitle = currentListData?.title || 'Laufliste';
+    const today = new Date().toLocaleDateString('de-DE');
+    
+    const htmlContent = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${listTitle} - Übersicht</title>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 20px; max-width: 800px; margin: 0 auto; }
+    h1 { color: #2563eb; border-bottom: 3px solid #2563eb; padding-bottom: 10px; }
+    .section { margin: 20px 0; padding: 15px; background: #f3f4f6; border-radius: 8px; }
+    .section h2 { margin-top: 0; color: #374151; font-size: 16px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+    .stat { background: white; padding: 12px; border-radius: 6px; text-align: center; border: 2px solid #e5e7eb; }
+    .stat-value { font-size: 24px; font-weight: bold; color: #1f2937; }
+    .stat-label { font-size: 12px; color: #6b7280; margin-top: 5px; }
+    .header-info { background: #dbeafe; padding: 10px; border-radius: 6px; margin-bottom: 20px; }
+    .header-info p { margin: 5px 0; }
+    @media print { body { padding: 10px; } }
+  </style>
+</head>
+<body>
+  <h1>📋 LAUFLISTE ÜBERSICHT</h1>
+  
+  <div class="header-info">
+    <p><strong>Gebiet:</strong> ${listTitle}</p>
+    <p><strong>Datum:</strong> ${today}</p>
+  </div>
+
+  <div class="section">
+    <h2>FORTSCHRITT</h2>
+    <div class="grid">
+      <div class="stat">
+        <div class="stat-value">${stats.geklingelt}/${stats.total}</div>
+        <div class="stat-label">Abgearbeitet</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value">${stats.geklingelt}</div>
+        <div class="stat-label">🚪 Geklingelt</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value">${Math.round((stats.geklingelt / stats.total) * 100)}%</div>
+        <div class="stat-label">Fortschritt</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>STATUS</h2>
+    <div class="grid">
+      <div class="stat">
+        <div class="stat-value" style="color: #16a34a;">${stats.vertrag}</div>
+        <div class="stat-label">✅ Verträge</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value" style="color: #3b82f6;">${stats.na}</div>
+        <div class="stat-label">🔵 NA</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value" style="color: #ef4444;">${stats.ki}</div>
+        <div class="stat-label">❌ KI</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value" style="color: #eab308;">${stats.nm}</div>
+        <div class="stat-label">⚠️ NM</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value" style="color: #6b7280;">${stats.offen}</div>
+        <div class="stat-label">⚪ Offen</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>PRODUKTE VERKAUFT</h2>
+    <div class="grid">
+      <div class="stat">
+        <div class="stat-value">${stats.productKIP}</div>
+        <div class="stat-label">📦 KIP</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value">${stats.productMOBILE}</div>
+        <div class="stat-label">📱 MOBILE</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value">${stats.productDIGI}</div>
+        <div class="stat-label">📺 DIGI</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value">${stats.productKAS}</div>
+        <div class="stat-label">📡 KAS</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value">${stats.productNET}</div>
+        <div class="stat-label">🔗 NET</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value">${stats.productUPSELL}</div>
+        <div class="stat-label">📈 UPSELL</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>ZEITRAUM</h2>
+    <div class="grid">
+      <div class="stat">
+        <div class="stat-value">${stats.heute.geklingelt}</div>
+        <div class="stat-label">📅 Heute - Türen</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value" style="color: #16a34a;">${stats.heute.vertrag}</div>
+        <div class="stat-label">📅 Heute - Verträge</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value">${stats.gestern.geklingelt}</div>
+        <div class="stat-label">📅 Gestern - Türen</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value" style="color: #16a34a;">${stats.gestern.vertrag}</div>
+        <div class="stat-label">📅 Gestern - Verträge</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value">${stats.vorgestern.geklingelt}</div>
+        <div class="stat-label">📅 Vorgestern - Türen</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value" style="color: #16a34a;">${stats.vorgestern.vertrag}</div>
+        <div class="stat-label">📅 Vorgestern - Verträge</div>
+      </div>
+    </div>
+  </div>
+
+</body>
+</html>
+    `;
+    
+    const blob = new Blob([htmlContent], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    const newWindow = window.open(url, '_blank');
+    
+    if (newWindow) {
+      newWindow.onload = () => {
+        setTimeout(() => {
+          newWindow.print();
+        }, 250);
+      };
+    }
+  };
+
   const stats = getStatusStats();
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-gray-100 py-2 px-2 md:py-4 md:px-4">
-      <div className="max-w-6xl mx-auto">
-        {/* Header */}
-        <div className="mb-4 text-center">
-          <h1 className="text-2xl md:text-3xl font-bold text-gray-800 flex items-center justify-center gap-2">
-            <MapPin className="text-blue-600" size={24} />
-            Laufliste Manager
-          </h1>
-          <p className="text-sm text-gray-600 mt-1">Außendiensttouren</p>
-        </div>
+    <>
+      {/* Zoom-Fix für Mobile */}
+      <style>{`
+        input, select, textarea {
+          font-size: 16px !important;
+        }
+      `}</style>
+      
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-gray-100 py-2 px-2 md:py-4 md:px-4">
+        <div className="max-w-6xl mx-auto">
+          {/* Header */}
+          <div className="mb-4 text-center">
+            <h1 className="text-2xl md:text-3xl font-bold text-gray-800 flex items-center justify-center gap-2">
+              <MapPin className="text-blue-600" size={24} />
+              Laufliste Manager
+            </h1>
+            <p className="text-sm text-gray-600 mt-1">Außendiensttouren</p>
+          </div>
 
-        {/* Listenauswahl */}
-        <div className="bg-white p-3 md:p-4 rounded-lg shadow mb-4">
-          <div className="flex gap-2 md:gap-4 items-center flex-wrap">
-            <select
-              value={currentList || ''}
-              onChange={(e) => setCurrentList(Number(e.target.value))}
-              className="flex-1 min-w-[200px] p-2 md:p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 text-sm md:text-base"
-            >
-              <option value="">Liste auswählen...</option>
-              {lists.map(list => {
-                const totalAddresses = list.streets ? list.streets.reduce((sum, street) => sum + street.addresses.length, 0) : 0;
-                const streetCount = list.streets ? list.streets.length : 0;
-                return (
-                  <option key={list.id} value={list.id}>
-                    {list.title} ({streetCount} Str., {totalAddresses} Adr.)
-                  </option>
-                );
-              })}
-            </select>
-            
-            {currentList && (
-              <button
-                onClick={() => deleteList(currentList)}
-                className="px-3 py-2 md:px-4 md:py-3 bg-red-500 text-white rounded-lg hover:bg-red-600 flex items-center gap-1 md:gap-2 text-sm md:text-base"
+          {/* Listenauswahl */}
+          <div className="bg-white p-3 md:p-4 rounded-lg shadow mb-4">
+            <div className="flex gap-2 md:gap-4 items-center flex-wrap">
+              <select
+                value={currentList || ''}
+                onChange={(e) => setCurrentList(Number(e.target.value))}
+                className="flex-1 min-w-[200px] p-2 md:p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 text-sm md:text-base"
               >
-                <Trash2 size={16} />
-                <span className="hidden sm:inline">Löschen</span>
-              </button>
-            )}
-            
-            <button
-              onClick={() => setShowNewListForm(!showNewListForm)}
-              className="px-3 py-2 md:px-4 md:py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-1 md:gap-2 text-sm md:text-base"
-            >
-              <Plus size={16} />
-              <span className="hidden sm:inline">Neue Liste</span>
-            </button>
-          </div>
-
-          {showNewListForm && (
-            <div className="mt-3 p-3 bg-blue-50 rounded-lg">
-              <input
-                type="text"
-                value={newListTitle}
-                onChange={(e) => setNewListTitle(e.target.value)}
-                placeholder="Listentitel (z.B. 'Gebiet Mainz Nord - KW 40')"
-                className="w-full p-2 md:p-3 border rounded-lg mb-2 focus:ring-2 focus:ring-blue-500 text-sm md:text-base"
-                onKeyPress={(e) => e.key === 'Enter' && createNewList()}
-              />
-              <div className="flex gap-2">
-                <button
-                  onClick={createNewList}
-                  className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
-                >
-                  Erstellen
-                </button>
-                <button
-                  onClick={() => setShowNewListForm(false)}
-                  className="px-3 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 text-sm"
-                >
-                  Abbrechen
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* Backup Buttons */}
-          <div className="mt-3 pt-3 border-t flex gap-2 flex-wrap">
-            <button
-              onClick={exportData}
-              className="px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-1 text-sm"
-            >
-              <Download size={14} />
-              Backup
-            </button>
-            <label className="px-3 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 flex items-center gap-1 cursor-pointer text-sm">
-              <Upload size={14} />
-              Restore
-              <input
-                type="file"
-                accept=".json"
-                onChange={importData}
-                className="hidden"
-              />
-            </label>
-          </div>
-        </div>
-
-        {currentListData && (
-          <>
-            {/* Statistiken - Kompakt */}
-            <div className="bg-white p-3 md:p-4 rounded-lg shadow mb-4">
-              <h2 className="text-base md:text-lg font-semibold mb-2 text-gray-800">Statistik</h2>
+                <option value="">Liste auswählen...</option>
+                {lists.map(list => {
+                  const totalAddresses = list.streets ? list.streets.reduce((sum, street) => sum + street.addresses.length, 0) : 0;
+                  const streetCount = list.streets ? list.streets.length : 0;
+                  return (
+                    <option key={list.id} value={list.id}>
+                      {list.title} ({streetCount} Str., {totalAddresses} Adr.)
+                    </option>
+                  );
+                })}
+              </select>
               
-              {/* Status */}
-              <div className="mb-3">
-                <h3 className="text-xs font-medium text-gray-600 mb-1">Status</h3>
-                <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
-                  <div className="bg-gray-50 p-2 rounded-lg border text-center">
-                    <div className="text-lg md:text-xl font-bold text-gray-700">{stats.total}</div>
-                    <div className="text-xs text-gray-600">Gesamt</div>
-                  </div>
-                  <div className="bg-gray-50 p-2 rounded-lg border text-center">
-                    <div className="text-lg md:text-xl font-bold text-gray-700">{stats.offen}</div>
-                    <div className="text-xs text-gray-600">Offen</div>
-                  </div>
-                  <div className="bg-red-50 p-2 rounded-lg border-red-200 border text-center">
-                    <div className="text-lg md:text-xl font-bold text-red-700">{stats.ki}</div>
-                    <div className="text-xs text-red-600">KI</div>
-                  </div>
-                  <div className="bg-yellow-50 p-2 rounded-lg border-yellow-200 border text-center">
-                    <div className="text-lg md:text-xl font-bold text-yellow-700">{stats.nm}</div>
-                    <div className="text-xs text-yellow-600">NM</div>
-                  </div>
-                  <div className="bg-blue-50 p-2 rounded-lg border-blue-200 border text-center">
-                    <div className="text-lg md:text-xl font-bold text-blue-700">{stats.na}</div>
-                    <div className="text-xs text-blue-600">NA</div>
-                  </div>
-                  <div className="bg-green-50 p-2 rounded-lg border-green-200 border text-center">
-                    <div className="text-lg md:text-xl font-bold text-green-700">{stats.vertrag}</div>
-                    <div className="text-xs text-green-600">Vertrag</div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Potenzial */}
-              <div className="mb-3">
-                <h3 className="text-xs font-medium text-gray-600 mb-1">Potenzial</h3>
-                <div className="grid grid-cols-3 gap-2">
-                  <div className="bg-blue-50 p-2 rounded-lg border-blue-200 border text-center">
-                    <div className="text-lg md:text-xl font-bold text-blue-700">{stats.kipMoeglich}</div>
-                    <div className="text-xs text-blue-600">KIP</div>
-                  </div>
-                  <div className="bg-purple-50 p-2 rounded-lg border-purple-200 border text-center">
-                    <div className="text-lg md:text-xl font-bold text-purple-700">{stats.upsellMoeglich}</div>
-                    <div className="text-xs text-purple-600">Upsell</div>
-                  </div>
-                  <div className="bg-orange-50 p-2 rounded-lg border-orange-200 border text-center">
-                    <div className="text-lg md:text-xl font-bold text-orange-700">{stats.nurKAS}</div>
-                    <div className="text-xs text-orange-600">KAS</div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Verkaufte Produkte */}
-              <div>
-                <h3 className="text-xs font-medium text-gray-600 mb-1">Verkaufte Produkte</h3>
-                <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
-                  <div className="bg-indigo-50 p-2 rounded-lg border-indigo-200 border text-center">
-                    <div className="text-lg md:text-xl font-bold text-indigo-700">{stats.productKIP}</div>
-                    <div className="text-xs text-indigo-600">KIP</div>
-                  </div>
-                  <div className="bg-pink-50 p-2 rounded-lg border-pink-200 border text-center">
-                    <div className="text-lg md:text-xl font-bold text-pink-700">{stats.productKAS}</div>
-                    <div className="text-xs text-pink-600">KAS</div>
-                  </div>
-                  <div className="bg-cyan-50 p-2 rounded-lg border-cyan-200 border text-center">
-                    <div className="text-lg md:text-xl font-bold text-cyan-700">{stats.productDIGI}</div>
-                    <div className="text-xs text-cyan-600">DIGI</div>
-                  </div>
-                  <div className="bg-teal-50 p-2 rounded-lg border-teal-200 border text-center">
-                    <div className="text-lg md:text-xl font-bold text-teal-700">{stats.productNET}</div>
-                    <div className="text-xs text-teal-600">NET</div>
-                  </div>
-                  <div className="bg-amber-50 p-2 rounded-lg border-amber-200 border text-center">
-                    <div className="text-lg md:text-xl font-bold text-amber-700">{stats.productMOBILE}</div>
-                    <div className="text-xs text-amber-600">MOBILE</div>
-                  </div>
-                  <div className="bg-violet-50 p-2 rounded-lg border-violet-200 border text-center">
-                    <div className="text-lg md:text-xl font-bold text-violet-700">{stats.productUPSELL}</div>
-                    <div className="text-xs text-violet-600">UPSELL</div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Suchfeld */}
-            <div className="bg-white p-3 rounded-lg shadow mb-4">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Straße suchen..."
-                  className="w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 text-sm md:text-base"
-                />
-                {searchQuery && (
+              {currentList && (
+                <>
                   <button
-                    onClick={() => setSearchQuery('')}
-                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    onClick={() => deleteList(currentList)}
+                    className="px-3 py-2 md:px-4 md:py-3 bg-red-500 text-white rounded-lg hover:bg-red-600 flex items-center gap-1 md:gap-2 text-sm md:text-base"
                   >
-                    <X size={18} />
+                    <Trash2 size={16} />
+                    <span className="hidden sm:inline">Löschen</span>
                   </button>
-                )}
-              </div>
+                  <button
+                    onClick={exportPDF}
+                    className="px-3 py-2 md:px-4 md:py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center gap-1 md:gap-2 text-sm md:text-base"
+                  >
+                    <FileText size={16} />
+                    <span className="hidden sm:inline">PDF</span>
+                  </button>
+                </>
+              )}
+              
+              <button
+                onClick={() => setShowNewListForm(!showNewListForm)}
+                className="px-3 py-2 md:px-4 md:py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-1 md:gap-2 text-sm md:text-base"
+              >
+                <Plus size={16} />
+                <span className="hidden sm:inline">Neue Liste</span>
+              </button>
             </div>
 
-            {/* Filter - Kompakt */}
-            <div className="bg-white p-3 rounded-lg shadow mb-4">
-              <div className="space-y-2">
-                {/* Status Filter */}
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-xs font-semibold text-gray-700">Status:</span>
-                  <div className="flex gap-1 flex-wrap">
-                    <button
-                      onClick={() => setStatusFilter('ALL')}
-                      className={`px-2 py-1 rounded text-xs font-medium ${
-                        statusFilter === 'ALL' ? 'bg-gray-700 text-white' : 'bg-gray-200 text-gray-700'
-                      }`}
-                    >
-                      Alle
-                    </button>
-                    <button
-                      onClick={() => setStatusFilter('OFFEN')}
-                      className={`px-2 py-1 rounded text-xs font-medium ${
-                        statusFilter === 'OFFEN' ? 'bg-gray-700 text-white' : 'bg-gray-200 text-gray-700'
-                      }`}
-                    >
-                      Offen
-                    </button>
-                    <button
-                      onClick={() => setStatusFilter('NA')}
-                      className={`px-2 py-1 rounded text-xs font-medium ${
-                        statusFilter === 'NA' ? 'bg-blue-600 text-white' : 'bg-blue-100 text-blue-700'
-                      }`}
-                    >
-                      NA
-                    </button>
-                    <button
-                      onClick={() => setStatusFilter('VERTRAG')}
-                      className={`px-2 py-1 rounded text-xs font-medium ${
-                        statusFilter === 'VERTRAG' ? 'bg-green-600 text-white' : 'bg-green-100 text-green-700'
-                      }`}
-                    >
-                      Vertrag
-                    </button>
-                  </div>
-                </div>
-
-                {/* Potenzial Filter */}
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-xs font-semibold text-gray-700">Potenzial:</span>
-                  <div className="flex gap-1 flex-wrap">
-                    <button
-                      onClick={() => setCustomerTypeFilter('ALL')}
-                      className={`px-2 py-1 rounded text-xs font-medium ${
-                        customerTypeFilter === 'ALL' ? 'bg-gray-700 text-white' : 'bg-gray-200 text-gray-700'
-                      }`}
-                    >
-                      Alle
-                    </button>
-                    <button
-                      onClick={() => setCustomerTypeFilter('KIP möglich')}
-                      className={`px-2 py-1 rounded text-xs font-medium ${
-                        customerTypeFilter === 'KIP möglich' ? 'bg-blue-600 text-white' : 'bg-blue-100 text-blue-700'
-                      }`}
-                    >
-                      🆕 KIP
-                    </button>
-                    <button
-                      onClick={() => setCustomerTypeFilter('Upsell möglich')}
-                      className={`px-2 py-1 rounded text-xs font-medium ${
-                        customerTypeFilter === 'Upsell möglich' ? 'bg-purple-600 text-white' : 'bg-purple-100 text-purple-700'
-                      }`}
-                    >
-                      📈 Upsell
-                    </button>
-                    <button
-                      onClick={() => setCustomerTypeFilter('Nur KAS')}
-                      className={`px-2 py-1 rounded text-xs font-medium ${
-                        customerTypeFilter === 'Nur KAS' ? 'bg-orange-600 text-white' : 'bg-orange-100 text-orange-700'
-                      }`}
-                    >
-                      📡 KAS
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Neue Straße hinzufügen */}
-            <div className="bg-white p-3 rounded-lg shadow mb-4">
-              <h2 className="text-base font-semibold mb-2 text-gray-800">Neue Straße</h2>
-              <div className="flex gap-2">
+            {showNewListForm && (
+              <div className="mt-3 p-3 bg-blue-50 rounded-lg">
                 <input
                   type="text"
-                  value={newStreet}
-                  onChange={(e) => setNewStreet(e.target.value)}
-                  placeholder="Straßenname..."
-                  className="flex-1 p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 text-sm md:text-base"
-                  onKeyPress={(e) => e.key === 'Enter' && addStreet()}
+                  value={newListTitle}
+                  onChange={(e) => setNewListTitle(e.target.value)}
+                  placeholder="Listentitel (z.B. 'Gebiet Mainz Nord - KW 40')"
+                  className="w-full p-2 md:p-3 border rounded-lg mb-2 focus:ring-2 focus:ring-blue-500 text-sm md:text-base"
+                  onKeyPress={(e) => e.key === 'Enter' && createNewList()}
                 />
-                <button
-                  onClick={addStreet}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-1"
-                >
-                  <Plus size={16} />
-                  <span className="hidden sm:inline text-sm">Anlegen</span>
-                </button>
+                <div className="flex gap-2">
+                  <button
+                    onClick={createNewList}
+                    className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
+                  >
+                    Erstellen
+                  </button>
+                  <button
+                    onClick={() => setShowNewListForm(false)}
+                    className="px-3 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 text-sm"
+                  >
+                    Abbrechen
+                  </button>
+                </div>
               </div>
+            )}
+
+            {/* Backup Buttons */}
+            <div className="mt-3 pt-3 border-t flex gap-2 flex-wrap">
+              <button
+                onClick={exportData}
+                className="px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-1 text-sm"
+              >
+                <Download size={14} />
+                Backup
+              </button>
+              <label className="px-3 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 flex items-center gap-1 cursor-pointer text-sm">
+                <Upload size={14} />
+                Restore
+                <input
+                  type="file"
+                  accept=".json"
+                  onChange={importData}
+                  className="hidden"
+                />
+              </label>
+              <span className="text-xs text-gray-600 flex items-center">💾 Auto-Backup aktiv</span>
             </div>
+          </div>
 
-            {/* Straßenliste */}
-            <div className="bg-white p-3 rounded-lg shadow">
-              <h2 className="text-base md:text-lg font-semibold mb-3 text-gray-800">
-                Straßen ({getFilteredStreets().length})
-              </h2>
-              
-              {currentListData.streets.length === 0 ? (
-                <div className="text-center py-6 text-gray-500 text-sm">
-                  Noch keine Straßen. Füge oben eine Straße hinzu.
+          {currentListData && (
+            <>
+              {/* Erweiterte Statistiken */}
+              <div className="bg-white p-3 md:p-4 rounded-lg shadow mb-4">
+                <h2 className="text-base md:text-lg font-semibold mb-2 text-gray-800">Statistik</h2>
+                
+                {/* Geklingelte Türen Gesamt */}
+                <div className="mb-3 p-3 bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg border-2 border-blue-200">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="text-xs font-medium text-gray-600">🚪 Geklingelte Türen</div>
+                      <div className="text-2xl md:text-3xl font-bold text-blue-700">{stats.geklingelt} <span className="text-sm text-gray-600">/ {stats.total}</span></div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-xs font-medium text-gray-600">Fortschritt</div>
+                      <div className="text-2xl md:text-3xl font-bold text-purple-700">{Math.round((stats.geklingelt / stats.total) * 100)}%</div>
+                    </div>
+                  </div>
                 </div>
-              ) : getFilteredStreets().length === 0 ? (
-                <div className="text-center py-6 text-gray-500 text-sm">
-                  Keine Straßen gefunden.
+
+                {/* Zeitraum Statistik */}
+                <div className="mb-3">
+                  <h3 className="text-xs font-medium text-gray-600 mb-1">📅 Zeitraum</h3>
+                  <div className="grid grid-cols-3 gap-2">
+                    <div className="bg-green-50 p-2 rounded-lg border border-green-200 text-center">
+                      <div className="text-sm font-bold text-green-700">Heute</div>
+                      <div className="text-xs text-gray-600 mt-1">🚪 {stats.heute.geklingelt}</div>
+                      <div className="text-xs text-green-600">✅ {stats.heute.vertrag}</div>
+                    </div>
+                    <div className="bg-blue-50 p-2 rounded-lg border border-blue-200 text-center">
+                      <div className="text-sm font-bold text-blue-700">Gestern</div>
+                      <div className="text-xs text-gray-600 mt-1">🚪 {stats.gestern.geklingelt}</div>
+                      <div className="text-xs text-green-600">✅ {stats.gestern.vertrag}</div>
+                    </div>
+                    <div className="bg-purple-50 p-2 rounded-lg border border-purple-200 text-center">
+                      <div className="text-sm font-bold text-purple-700">Vorgestern</div>
+                      <div className="text-xs text-gray-600 mt-1">🚪 {stats.vorgestern.geklingelt}</div>
+                      <div className="text-xs text-green-600">✅ {stats.vorgestern.vertrag}</div>
+                    </div>
+                  </div>
                 </div>
-              ) : (
+
+                {/* Status */}
+                <div className="mb-3">
+                  <h3 className="text-xs font-medium text-gray-600 mb-1">Status</h3>
+                  <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
+                    <div className="bg-gray-50 p-2 rounded-lg border text-center">
+                      <div className="text-lg md:text-xl font-bold text-gray-700">{stats.total}</div>
+                      <div className="text-xs text-gray-600">Gesamt</div>
+                    </div>
+                    <div className="bg-gray-50 p-2 rounded-lg border text-center">
+                      <div className="text-lg md:text-xl font-bold text-gray-700">{stats.offen}</div>
+                      <div className="text-xs text-gray-600">Offen</div>
+                    </div>
+                    <div className="bg-red-50 p-2 rounded-lg border-red-200 border text-center">
+                      <div className="text-lg md:text-xl font-bold text-red-700">{stats.ki}</div>
+                      <div className="text-xs text-red-600">KI</div>
+                    </div>
+                    <div className="bg-yellow-50 p-2 rounded-lg border-yellow-200 border text-center">
+                      <div className="text-lg md:text-xl font-bold text-yellow-700">{stats.nm}</div>
+                      <div className="text-xs text-yellow-600">NM</div>
+                    </div>
+                    <div className="bg-blue-50 p-2 rounded-lg border-blue-200 border text-center">
+                      <div className="text-lg md:text-xl font-bold text-blue-700">{stats.na}</div>
+                      <div className="text-xs text-blue-600">NA</div>
+                    </div>
+                    <div className="bg-green-50 p-2 rounded-lg border-green-200 border text-center">
+                      <div className="text-lg md:text-xl font-bold text-green-700">{stats.vertrag}</div>
+                      <div className="text-xs text-green-600">Vertrag</div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Potenzial */}
+                <div className="mb-3">
+                  <h3 className="text-xs font-medium text-gray-600 mb-1">Potenzial</h3>
+                  <div className="grid grid-cols-4 gap-2">
+                    <div className="bg-blue-50 p-2 rounded-lg border-blue-200 border text-center">
+                      <div className="text-lg md:text-xl font-bold text-blue-700">{stats.kipMoeglich}</div>
+                      <div className="text-xs text-blue-600">KIP</div>
+                    </div>
+                    <div className="bg-purple-50 p-2 rounded-lg border-purple-200 border text-center">
+                      <div className="text-lg md:text-xl font-bold text-purple-700">{stats.upsellMoeglich}</div>
+                      <div className="text-xs text-purple-600">Upsell</div>
+                    </div>
+                    <div className="bg-orange-50 p-2 rounded-lg border-orange-200 border text-center">
+                      <div className="text-lg md:text-xl font-bold text-orange-700">{stats.nurKAS}</div>
+                      <div className="text-xs text-orange-600">KAS</div>
+                    </div>
+                    <div className="bg-gray-50 p-2 rounded-lg border-gray-200 border text-center">
+                      <div className="text-lg md:text-xl font-bold text-gray-700">{stats.sonstiges}</div>
+                      <div className="text-xs text-gray-600">Sonstiges</div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Verkaufte Produkte */}
+                <div>
+                  <h3 className="text-xs font-medium text-gray-600 mb-1">Verkaufte Produkte</h3>
+                  <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
+                    <div className="bg-indigo-50 p-2 rounded-lg border-indigo-200 border text-center">
+                      <div className="text-lg md:text-xl font-bold text-indigo-700">{stats.productKIP}</div>
+                      <div className="text-xs text-indigo-600">KIP</div>
+                    </div>
+                    <div className="bg-pink-50 p-2 rounded-lg border-pink-200 border text-center">
+                      <div className="text-lg md:text-xl font-bold text-pink-700">{stats.productKAS}</div>
+                      <div className="text-xs text-pink-600">KAS</div>
+                    </div>
+                    <div className="bg-cyan-50 p-2 rounded-lg border-cyan-200 border text-center">
+                      <div className="text-lg md:text-xl font-bold text-cyan-700">{stats.productDIGI}</div>
+                      <div className="text-xs text-cyan-600">DIGI</div>
+                    </div>
+                    <div className="bg-teal-50 p-2 rounded-lg border-teal-200 border text-center">
+                      <div className="text-lg md:text-xl font-bold text-teal-700">{stats.productNET}</div>
+                      <div className="text-xs text-teal-600">NET</div>
+                    </div>
+                    <div className="bg-amber-50 p-2 rounded-lg border-amber-200 border text-center">
+                      <div className="text-lg md:text-xl font-bold text-amber-700">{stats.productMOBILE}</div>
+                      <div className="text-xs text-amber-600">MOBILE</div>
+                    </div>
+                    <div className="bg-violet-50 p-2 rounded-lg border-violet-200 border text-center">
+                      <div className="text-lg md:text-xl font-bold text-violet-700">{stats.productUPSELL}</div>
+                      <div className="text-xs text-violet-600">UPSELL</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Suchfeld */}
+              <div className="bg-white p-3 rounded-lg shadow mb-4">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Straße suchen..."
+                    className="w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 text-sm md:text-base"
+                  />
+                  {searchQuery && (
+                    <button
+                      onClick={() => setSearchQuery('')}
+                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    >
+                      <X size={18} />
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Filter */}
+              <div className="bg-white p-3 rounded-lg shadow mb-4">
                 <div className="space-y-2">
-                  {getFilteredStreets().map(street => {
-                    const streetStats = getStreetStats(street);
-                    const isExpanded = expandedStreets[street.id];
-                    const completed = streetStats.total - streetStats.offen;
-                    const progressPercent = streetStats.total > 0 ? (completed / streetStats.total) * 100 : 0;
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-xs font-semibold text-gray-700">Status:</span>
+                    <div className="flex gap-1 flex-wrap">
+                      <button
+                        onClick={() => setStatusFilter('ALL')}
+                        className={`px-2 py-1 rounded text-xs font-medium ${
+                          statusFilter === 'ALL' ? 'bg-gray-700 text-white' : 'bg-gray-200 text-gray-700'
+                        }`}
+                      >
+                        Alle
+                      </button>
+                      <button
+                        onClick={() => setStatusFilter('OFFEN')}
+                        className={`px-2 py-1 rounded text-xs font-medium ${
+                          statusFilter === 'OFFEN' ? 'bg-gray-700 text-white' : 'bg-gray-200 text-gray-700'
+                        }`}
+                      >
+                        Offen
+                      </button>
+                      <button
+                        onClick={() => setStatusFilter('NA')}
+                        className={`px-2 py-1 rounded text-xs font-medium ${
+                          statusFilter === 'NA' ? 'bg-blue-600 text-white' : 'bg-blue-100 text-blue-700'
+                        }`}
+                      >
+                        NA
+                      </button>
+                      <button
+                        onClick={() => setStatusFilter('VERTRAG')}
+                        className={`px-2 py-1 rounded text-xs font-medium ${
+                          statusFilter === 'VERTRAG' ? 'bg-green-600 text-white' : 'bg-green-100 text-green-700'
+                        }`}
+                      >
+                        Vertrag
+                      </button>
+                    </div>
+                  </div>
 
-                    return (
-                      <div key={street.id} className="border-2 border-blue-200 rounded-lg bg-blue-50">
-                        {/* Straßenkopf - Klickbar */}
-                        <div 
-                          className="p-3 cursor-pointer hover:bg-blue-100 transition-colors"
-                          onClick={() => toggleStreetExpanded(street.id)}
-                        >
-                          <div className="flex items-center justify-between mb-2">
-                            <div className="flex items-center gap-2 flex-1">
-                              {isExpanded ? <ChevronUp size={20} className="text-blue-600" /> : <ChevronDown size={20} className="text-blue-600" />}
-                              <MapPin size={18} className="text-blue-600" />
-                              <h3 className="text-base md:text-lg font-bold text-blue-900">{street.name}</h3>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <span className="text-xs md:text-sm text-blue-600 bg-blue-100 px-2 py-1 rounded-full font-semibold">
-                                {completed}/{streetStats.total}
-                              </span>
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  deleteStreet(street.id);
-                                }}
-                                className="p-1 hover:bg-red-100 rounded text-red-600"
-                              >
-                                <Trash2 size={16} />
-                              </button>
-                            </div>
-                          </div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-xs font-semibold text-gray-700">Potenzial:</span>
+                    <div className="flex gap-1 flex-wrap">
+                      <button
+                        onClick={() => setCustomerTypeFilter('ALL')}
+                        className={`px-2 py-1 rounded text-xs font-medium ${
+                          customerTypeFilter === 'ALL' ? 'bg-gray-700 text-white' : 'bg-gray-200 text-gray-700'
+                        }`}
+                      >
+                        Alle
+                      </button>
+                      <button
+                        onClick={() => setCustomerTypeFilter('KIP möglich')}
+                        className={`px-2 py-1 rounded text-xs font-medium ${
+                          customerTypeFilter === 'KIP möglich' ? 'bg-blue-600 text-white' : 'bg-blue-100 text-blue-700'
+                        }`}
+                      >
+                        🆕 KIP
+                      </button>
+                      <button
+                        onClick={() => setCustomerTypeFilter('Upsell möglich')}
+                        className={`px-2 py-1 rounded text-xs font-medium ${
+                          customerTypeFilter === 'Upsell möglich' ? 'bg-purple-600 text-white' : 'bg-purple-100 text-purple-700'
+                        }`}
+                      >
+                        📈 Upsell
+                      </button>
+                      <button
+                        onClick={() => setCustomerTypeFilter('Nur KAS')}
+                        className={`px-2 py-1 rounded text-xs font-medium ${
+                          customerTypeFilter === 'Nur KAS' ? 'bg-orange-600 text-white' : 'bg-orange-100 text-orange-700'
+                        }`}
+                      >
+                        📡 KAS
+                      </button>
+                      <button
+                        onClick={() => setCustomerTypeFilter('Sonstiges')}
+                        className={`px-2 py-1 rounded text-xs font-medium ${
+                          customerTypeFilter === 'Sonstiges' ? 'bg-gray-600 text-white' : 'bg-gray-100 text-gray-700'
+                        }`}
+                      >
+                        🔸 Sonstiges
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
 
-                          {/* Fortschrittsbalken */}
-                          <div className="w-full bg-gray-200 rounded-full h-2 mb-2">
-                            <div 
-                              className="bg-green-500 h-2 rounded-full transition-all duration-300"
-                              style={{ width: `${progressPercent}%` }}
-                            />
-                          </div>
+              {/* Neue Straße hinzufügen */}
+              <div className="bg-white p-3 rounded-lg shadow mb-4">
+                <h2 className="text-base font-semibold mb-2 text-gray-800">Neue Straße</h2>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={newStreet}
+                    onChange={(e) => setNewStreet(e.target.value)}
+                    placeholder="Straßenname..."
+                    className="flex-1 p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 text-sm md:text-base"
+                    onKeyPress={(e) => e.key === 'Enter' && addStreet()}
+                  />
+                  <button
+                    onClick={addStreet}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-1"
+                  >
+                    <Plus size={16} />
+                    <span className="hidden sm:inline text-sm">Anlegen</span>
+                  </button>
+                </div>
+              </div>
 
-                          {/* Schnellstatistik */}
-                          <div className="flex gap-2 text-xs flex-wrap">
-                            {streetStats.offen > 0 && <span className="bg-gray-100 px-2 py-0.5 rounded">⚪ {streetStats.offen} Offen</span>}
-                            {streetStats.na > 0 && <span className="bg-blue-100 px-2 py-0.5 rounded text-blue-700">🔵 {streetStats.na} NA</span>}
-                            {streetStats.vertrag > 0 && <span className="bg-green-100 px-2 py-0.5 rounded text-green-700">✅ {streetStats.vertrag} Vertrag</span>}
-                            {streetStats.ki > 0 && <span className="bg-red-100 px-2 py-0.5 rounded text-red-700">❌ {streetStats.ki} KI</span>}
-                            {streetStats.nm > 0 && <span className="bg-yellow-100 px-2 py-0.5 rounded text-yellow-700">⚠️ {streetStats.nm} NM</span>}
-                          </div>
-                        </div>
+              {/* Straßenliste */}
+              <div className="bg-white p-3 rounded-lg shadow">
+                <h2 className="text-base md:text-lg font-semibold mb-3 text-gray-800">
+                  Straßen ({getFilteredStreets().length})
+                </h2>
+                
+                {currentListData.streets.length === 0 ? (
+                  <div className="text-center py-6 text-gray-500 text-sm">
+                    Noch keine Straßen. Füge oben eine Straße hinzu.
+                  </div>
+                ) : getFilteredStreets().length === 0 ? (
+                  <div className="text-center py-6 text-gray-500 text-sm">
+                    Keine Straßen gefunden.
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {getFilteredStreets().map(street => {
+                      const streetStats = getStreetStats(street);
+                      const isExpanded = expandedStreets[street.id];
+                      const completed = streetStats.total - streetStats.offen;
+                      const progressPercent = streetStats.total > 0 ? (completed / streetStats.total) * 100 : 0;
 
-                        {/* Erweiterte Ansicht */}
-                        {isExpanded && (
-                          <div className="border-t border-blue-200 p-3 bg-white">
-                            {/* Hausnummer hinzufügen */}
-                            {statusFilter === 'ALL' && customerTypeFilter === 'ALL' && (
-                              <div className="bg-blue-50 p-2 rounded-lg mb-3 border border-blue-200">
-                                <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-2">
-                                  <input
-                                    type="text"
-                                    value={newHouseNumber.number}
-                                    onChange={(e) => setNewHouseNumber({...newHouseNumber, number: e.target.value})}
-                                    placeholder="Nr. *"
-                                    className="p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
-                                    onKeyPress={(e) => e.key === 'Enter' && addHouseNumber(street.id)}
-                                  />
-                                  <select
-                                    value={newHouseNumber.customerType}
-                                    onChange={(e) => setNewHouseNumber({...newHouseNumber, customerType: e.target.value})}
-                                    className="p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 text-xs md:text-sm"
-                                  >
-                                    <option value="KIP möglich">🆕 KIP</option>
-                                    <option value="Upsell möglich">📈 Upsell</option>
-                                    <option value="Nur KAS">📡 KAS</option>
-                                  </select>
-                                  <input
-                                    type="text"
-                                    value={newHouseNumber.name}
-                                    onChange={(e) => setNewHouseNumber({...newHouseNumber, name: e.target.value})}
-                                    placeholder="Name"
-                                    className="p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
-                                  />
-                                  <input
-                                    type="text"
-                                    value={newHouseNumber.currentContract}
-                                    onChange={(e) => setNewHouseNumber({...newHouseNumber, currentContract: e.target.value})}
-                                    placeholder="Vertrag"
-                                    className="p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
-                                  />
-                                </div>
+                      return (
+                        <div key={street.id} className="border-2 border-blue-200 rounded-lg bg-blue-50">
+                          {/* Straßenkopf - Klickbar */}
+                          <div 
+                            className="p-3 cursor-pointer hover:bg-blue-100 transition-colors"
+                            onClick={() => toggleStreetExpanded(street.id)}
+                          >
+                            <div className="flex items-center justify-between mb-2">
+                              <div className="flex items-center gap-2 flex-1">
+                                {isExpanded ? <ChevronUp size={20} className="text-blue-600" /> : <ChevronDown size={20} className="text-blue-600" />}
+                                <MapPin size={18} className="text-blue-600" />
+                                <h3 className="text-base md:text-lg font-bold text-blue-900">{street.name}</h3>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs md:text-sm text-blue-600 bg-blue-100 px-2 py-1 rounded-full font-semibold">
+                                  {completed}/{streetStats.total}
+                                </span>
                                 <button
-                                  onClick={() => addHouseNumber(street.id)}
-                                  className="w-full p-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center justify-center gap-1 text-sm"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    deleteStreet(street.id);
+                                  }}
+                                  className="p-1 hover:bg-red-100 rounded text-red-600"
                                 >
-                                  <Plus size={14} />
-                                  Hausnummer
+                                  <Trash2 size={16} />
                                 </button>
                               </div>
-                            )}
+                            </div>
 
-                            {/* Adressen */}
-                            {street.addresses.length === 0 ? (
-                              <div className="text-center py-4 text-gray-500 text-sm">
-                                Noch keine Hausnummern.
-                              </div>
-                            ) : (
-                              <div className="space-y-2">
-                                {street.addresses.map(address => {
-                                  const customerTypeBadge = getCustomerTypeBadge(address.customerType);
-                                  const addressProducts = selectedProducts[address.id] || [];
-                                  
-                                  return (
-                                    <div key={address.id} className="border rounded-lg overflow-hidden">
-                                      <div className={`p-2 md:p-3 ${address.status ? getStatusColor(address.status) : 'bg-white border'}`}>
-                                        <div className="flex items-start justify-between mb-2">
-                                          <div className="flex-1">
-                                            <div className="flex items-center gap-2 mb-1 flex-wrap">
-                                              <Home size={14} />
-                                              <span className="font-semibold text-sm md:text-base">Nr. {address.number}</span>
-                                              <span className={`text-xs px-1.5 py-0.5 rounded-full ${customerTypeBadge.color}`}>
-                                                {customerTypeBadge.icon} {customerTypeBadge.label}
-                                              </span>
-                                            </div>
-                                            {address.name && (
-                                              <div className="flex items-center gap-1 text-xs text-gray-600 ml-4">
-                                                <User size={10} />
-                                                {address.name}
-                                              </div>
-                                            )}
-                                            {address.currentContract && (
-                                              <div className="text-xs text-gray-600 ml-4 mt-1">
-                                                📋 {address.currentContract}
-                                              </div>
-                                            )}
-                                            {address.status && (
-                                              <div className="flex items-center gap-1 mt-1 ml-4 flex-wrap">
-                                                <Clock size={10} />
-                                                <span className="text-xs font-medium">
-                                                  {address.status}
-                                                  {address.status === 'VERTRAG' && address.products && address.products.length > 0 && (
-                                                    <span className="ml-1">({address.products.join(', ')})</span>
-                                                  )}
-                                                </span>
-                                              </div>
-                                            )}
-                                          </div>
-                                          <div className="flex gap-1">
-                                            <button
-                                              onClick={() => toggleExpanded(address.id)}
-                                              className="p-1 hover:bg-white/50 rounded"
-                                            >
-                                              {expandedAddresses[address.id] ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-                                            </button>
-                                            <button
-                                              onClick={() => deleteAddress(street.id, address.id)}
-                                              className="p-1 hover:bg-red-100 rounded text-red-600"
-                                            >
-                                              <Trash2 size={14} />
-                                            </button>
-                                          </div>
-                                        </div>
+                            {/* Fortschrittsbalken */}
+                            <div className="w-full bg-gray-200 rounded-full h-2 mb-2">
+                              <div 
+                                className="bg-green-500 h-2 rounded-full transition-all duration-300"
+                                style={{ width: `${progressPercent}%` }}
+                              />
+                            </div>
 
-                                        {/* Status-Buttons - Kompakt */}
-                                        <div className="flex gap-1 mb-2">
-                                          <button
-                                            onClick={() => updateAddressStatus(street.id, address.id, 'KI')}
-                                            className="flex-1 px-2 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 text-xs font-medium active:scale-95 transition-transform"
-                                          >
-                                            KI
-                                          </button>
-                                          <button
-                                            onClick={() => updateAddressStatus(street.id, address.id, 'NM')}
-                                            className="flex-1 px-2 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 text-xs font-medium active:scale-95 transition-transform"
-                                          >
-                                            NM
-                                          </button>
-                                          <button
-                                            onClick={() => updateAddressStatus(street.id, address.id, 'NA')}
-                                            className="flex-1 px-2 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 text-xs font-medium active:scale-95 transition-transform"
-                                          >
-                                            NA
-                                          </button>
-                                        </div>
+                            {/* Schnellstatistik */}
+                            <div className="flex gap-2 text-xs flex-wrap">
+                              {streetStats.offen > 0 && <span className="bg-gray-100 px-2 py-0.5 rounded">⚪ {streetStats.offen} Offen</span>}
+                              {streetStats.na > 0 && <span className="bg-blue-100 px-2 py-0.5 rounded text-blue-700">🔵 {streetStats.na} NA</span>}
+                              {streetStats.vertrag > 0 && <span className="bg-green-100 px-2 py-0.5 rounded text-green-700">✅ {streetStats.vertrag} Vertrag</span>}
+                              {streetStats.ki > 0 && <span className="bg-red-100 px-2 py-0.5 rounded text-red-700">❌ {streetStats.ki} KI</span>}
+                              {streetStats.nm > 0 && <span className="bg-yellow-100 px-2 py-0.5 rounded text-yellow-700">⚠️ {streetStats.nm} NM</span>}
+                            </div>
+                          </div>
 
-{/* Produkt-Auswahl Buttons */}
-                                        <div className="mb-2">
-                                          <div className="text-xs font-medium text-gray-700 mb-1">Vertrag - Produkte wählen:</div>
-                                          <div className="grid grid-cols-3 gap-1 mb-2">
-                                            {['KIP', 'KAS', 'DIGI', 'NET', 'MOBILE', 'UPSELL'].map(product => {
-                                              const count = addressProducts.filter(p => p === product).length;
-                                              const isMulti = ['MOBILE', 'NET'].includes(product);
-                                              const maxCount = product === 'MOBILE' ? 5 : product === 'NET' ? 2 : 1;
-                                              
-                                              return (
-                                                <div key={product} className="flex gap-1">
-                                                  <button
-                                                    onClick={() => toggleProductSelection(address.id, product)}
-                                                    className={`flex-1 p-2 rounded-lg text-xs font-medium transition-all flex items-center justify-center gap-1 ${
-                                                      count > 0
-                                                        ? 'bg-green-500 text-white'
-                                                        : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                                                    }`}
-                                                  >
-                                                    {count > 0 && <Check size={12} />}
-                                                    {product} {count > 0 && isMulti && `(${count})`}
-                                                  </button>
-                                                  {isMulti && count > 0 && (
-                                                    <button
-                                                      onClick={() => removeProduct(address.id, product)}
-                                                      className="px-2 bg-red-500 text-white rounded-lg hover:bg-red-600 text-xs"
-                                                    >
-                                                      -
-                                                    </button>
-                                                  )}
-                                                </div>
-                                              );
-                                            })}
-                                          </div>
-                                          <button
-                                            onClick={() => submitContract(street.id, address.id)}
-                                            disabled={addressProducts.length === 0}
-                                            className={`w-full p-2 rounded-lg text-xs font-medium flex items-center justify-center gap-1 ${
-                                              addressProducts.length === 0
-                                                ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                                                : 'bg-green-600 text-white hover:bg-green-700'
-                                            }`}
-                                          >
-                                            ✅ Vertrag senden ({addressProducts.length})
-                                          </button>
-                                        </div>
-                                        </div>
-                                        
+                          {/* Erweiterte Ansicht */}
+                          {isExpanded && (
+                            <div className="border-t border-blue-200 p-3 bg-white">
+                              {/* Hausnummer hinzufügen */}
+                              {statusFilter === 'ALL' && customerTypeFilter === 'ALL' && (
+                                <div className="bg-blue-50 p-2 rounded-lg mb-3 border border-blue-200">
+                                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-2">
+                                    <input
+                                      type="text"
+                                      value={newHouseNumber.number}
+                                      onChange={(e) => setNewHouseNumber({...newHouseNumber, number: e.target.value})}
+                                      placeholder="Nr. *"
+                                      className="p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
+                                      onKeyPress={(e) => e.key === 'Enter' && addHouseNumber(street.id)}
+                                    />
+                                    <select
+                                      value={newHouseNumber.customerType}
+                                      onChange={(e) => setNewHouseNumber({...newHouseNumber, customerType: e.target.value})}
+                                      className="p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 text-xs md:text-sm"
+                                    >
+                                      <option value="KIP möglich">🆕 KIP</option>
+                                      <option value="Upsell möglich">📈 Upsell</option>
+                                      <option value="Nur KAS">📡 KAS</option>
+                                      <option value="Sonstiges">🔸 Sonstiges</option>
+                                    </select>
+                                    <input
+                                      type="text"
+                                      value={newHouseNumber.name}
+                                      onChange={(e) => setNewHouseNumber({...newHouseNumber, name: e.target.value})}
+                                      placeholder="Name"
+                                      className="p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
+                                    />
+                                    <input
+                                      type="text"
+                                      value={newHouseNumber.currentContract}
+                                      onChange={(e) => setNewHouseNumber({...newHouseNumber, currentContract: e.target.value})}
+                                      placeholder="Vertrag"
+                                      className="p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
+                                    />
+                                  </div>
+                                  <button
+                                    onClick={() => addHouseNumber(street.id)}
+                                    className="w-full p-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center justify-center gap-1 text-sm"
+                                  >
+                                    <Plus size={14} />
+                                    Hausnummer
+                                  </button>
+                                </div>
+                              )}
 
-                                      {/* Verlauf */}
-                                      {expandedAddresses[address.id] && address.statusHistory.length > 0 && (
-                                        <div className="bg-gray-50 p-2 border-t">
-                                          <h4 className="font-semibold text-xs text-gray-700 mb-1">Verlauf:</h4>
-                                          <div className="space-y-1">
-                                            {address.statusHistory.map((history, idx) => (
-                                              <div key={idx} className="text-xs flex items-center justify-between gap-2 text-gray-600 bg-white p-1.5 rounded">
-                                                <div className="flex items-center gap-1 flex-1 min-w-0">
-                                                  <Clock size={10} />
-                                                  <span className="font-medium text-xs truncate">{formatTimestamp(history.timestamp)}</span>
-                                                  <span>→</span>
-                                                  <span className="font-semibold">{history.status}</span>
-                                                  {history.products && history.products.length > 0 && (
-                                                    <span className="text-green-600 truncate">({history.products.join(', ')})</span>
-                                                  )}
-                                                </div>
+                              {/* Adressen */}
+                              {street.addresses.length === 0 ? (
+                                <div className="text-center py-4 text-gray-500 text-sm">
+                                  Noch keine Hausnummern.
+                                </div>
+                              ) : (
+                                <div className="space-y-2">
+                                  {street.addresses.map(address => {
+                                    const customerTypeBadge = getCustomerTypeBadge(address.customerType);
+                                    const addressProducts = selectedProducts[address.id] || [];
+                                    const isEditing = editingAddress?.streetId === street.id && editingAddress?.addressId === address.id;
+                                    
+                                    return (
+                                      <div key={address.id} className="border rounded-lg overflow-hidden">
+                                        <div className={`p-2 md:p-3 ${address.status ? getStatusColor(address.status) : 'bg-white border'}`}>
+                                          {isEditing ? (
+                                            // Edit-Modus
+                                            <div className="space-y-2">
+                                              <div className="font-semibold text-sm text-gray-700 mb-2">Hausnummer bearbeiten:</div>
+                                              <input
+                                                type="text"
+                                                value={editForm.number}
+                                                onChange={(e) => setEditForm({...editForm, number: e.target.value})}
+                                                placeholder="Hausnummer *"
+                                                className="w-full p-2 border rounded-lg text-sm"
+                                              />
+                                              <select
+                                                value={editForm.customerType}
+                                                onChange={(e) => setEditForm({...editForm, customerType: e.target.value})}
+                                                className="w-full p-2 border rounded-lg text-sm"
+                                              >
+                                                <option value="KIP möglich">🆕 KIP möglich</option>
+                                                <option value="Upsell möglich">📈 Upsell möglich</option>
+                                                <option value="Nur KAS">📡 Nur KAS</option>
+                                                <option value="Sonstiges">🔸 Sonstiges</option>
+                                              </select>
+                                              <input
+                                                type="text"
+                                                value={editForm.name}
+                                                onChange={(e) => setEditForm({...editForm, name: e.target.value})}
+                                                placeholder="Name (optional)"
+                                                className="w-full p-2 border rounded-lg text-sm"
+                                              />
+                                              <input
+                                                type="text"
+                                                value={editForm.currentContract}
+                                                onChange={(e) => setEditForm({...editForm, currentContract: e.target.value})}
+                                                placeholder="Aktueller Vertrag (optional)"
+                                                className="w-full p-2 border rounded-lg text-sm"
+                                              />
+                                              <div className="flex gap-2">
                                                 <button
-                                                  onClick={() => deleteStatusHistoryEntry(street.id, address.id, idx)}
-                                                  className="p-1 hover:bg-red-100 rounded text-red-600 flex-shrink-0"
+                                                  onClick={saveEdit}
+                                                  className="flex-1 p-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm font-medium"
                                                 >
-                                                  <X size={12} />
+                                                  ✓ Speichern
+                                                </button>
+                                                <button
+                                                  onClick={cancelEdit}
+                                                  className="flex-1 p-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 text-sm font-medium"
+                                                >
+                                                  ✕ Abbrechen
                                                 </button>
                                               </div>
-                                            ))}
-                                          </div>
-                                        </div>
-                                      )}
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          </>
-        )}
+                                            </div>
+                                          ) : (
+                                            // Normal-Ansicht
+                                            <>
+                                              <div className="flex items-start justify-between mb-2">
+                                                <div className="flex-1">
+                                                  <div className="flex items-center gap-2 mb-1 flex-wrap">
+                                                    <Home size={14} />
+                                                    <span className="font-semibold text-sm md:text-base">Nr. {address.number}</span>
+                                                    <span className={`text-xs px-1.5 py-0.5 rounded-full ${customerTypeBadge.color}`}>
+                                                      {customerTypeBadge.icon} {customerTypeBadge.label}
+                                                    </span>
+                                                  </div>
+                                                  {address.name && (
+                                                    <div className="flex items-center gap-1 text-xs text-gray-600 ml-4">
+                                                      <User size={10} />
+                                                      {address.name}
+                                                    </div>
+                                                  )}
+                                                  {address.currentContract && (
+                                                    <div className="text-xs text-gray-600 ml-4 mt-1">
+                                                      📋 {address.currentContract}
+                                                    </div>
+                                                  )}
+                                                  {address.status && (
+                                                    <div className="flex items-center gap-1 mt-1 ml-4 flex-wrap">
+                                                      <Clock size={10} />
+                                                      <span className="text-xs font-medium">
+                                                        {address.status}
+                                                        {address.status === 'VERTRAG' && address.products && address.products.length > 0 && (
+                                                          <span className="ml-1">({address.products.join(', ')})</span>
+                                                        )}
+                                                      </span>
+                                                    </div>
+                                                  )}
+                                                </div>
+                                                <div className="flex gap-1">
+                                                  <button
+                                                    onClick={() => startEditAddress(street.id, address)}
+                                                    className="p-1 hover:bg-blue-100 rounded text-blue-600"
+                                                    title="Bearbeiten"
+                                                  >
+                                                    <Edit2 size={14} />
+                                                  </button>
+                                                  <button
+                                                    onClick={() => toggleExpanded(address.id)}
+                                                    className="p-1 hover:bg-white/50 rounded"
+                                                  >
+                                                    {expandedAddresses[address.id] ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                                                  </button>
+                                                  <button
+                                                    onClick={() => deleteAddress(street.id, address.id)}
+                                                    className="p-1 hover:bg-red-100 rounded text-red-600"
+                                                  >
+                                                    <Trash2 size={14} />
+                                                  </button>
+                                                </div>
+                                              </div>
 
-        {!currentListData && lists.length === 0 && (
+                                              {/* Status-Buttons - Kompakt */}
+                                              <div className="flex gap-1 mb-2">
+                                                <button
+                                                  onClick={() => updateAddressStatus(street.id, address.id, 'KI')}
+                                                  className="flex-1 px-2 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 text-xs font-medium active:scale-95 transition-transform"
+                                                >
+                                                  KI
+                                                </button>
+                                                <button
+                                                  onClick={() => updateAddressStatus(street.id, address.id, 'NM')}
+                                                  className="flex-1 px-2 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 text-xs font-medium active:scale-95 transition-transform"
+                                                >
+                                                  NM
+                                                </button>
+                                                <button
+                                                  onClick={() => updateAddressStatus(street.id, address.id, 'NA')}
+                                                  className="flex-1 px-2 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 text-xs font-medium active:scale-95 transition-transform"
+                                                >
+                                                  NA
+                                                </button>
+                                              </div>
+
+                                              {/* Produkt-Auswahl Buttons */}
+                                              <div className="mb-2">
+                                                <div className="text-xs font-medium text-gray-700 mb-1">Vertrag - Produkte wählen:</div>
+                                                <div className="grid grid-cols-3 gap-1 mb-2">
+                                                  {['KIP', 'KAS', 'DIGI', 'NET', 'MOBILE', 'UPSELL'].map(product => {
+                                                    const count = addressProducts.filter(p => p === product).length;
+                                                    const isMulti = ['MOBILE', 'NET'].includes(product);
+                                                    
+                                                    return (
+                                                      <div key={product} className="flex gap-1">
+                                                        <button
+                                                          onClick={() => toggleProductSelection(address.id, product)}
+                                                          className={`flex-1 p-2 rounded-lg text-xs font-medium transition-all flex items-center justify-center gap-1 ${
+                                                            count > 0
+                                                              ? 'bg-green-500 text-white'
+                                                              : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                                                          }`}
+                                                        >
+                                                          {count > 0 && <Check size={12} />}
+                                                          {product} {count > 0 && isMulti && `(${count})`}
+                                                        </button>
+                                                        {isMulti && count > 0 && (
+                                                          <button
+                                                            onClick={() => removeProduct(address.id, product)}
+                                                            className="px-2 bg-red-500 text-white rounded-lg hover:bg-red-600 text-xs"
+                                                          >
+                                                            -
+                                                          </button>
+                                                        )}
+                                                      </div>
+                                                    );
+                                                  })}
+                                                </div>
+                                                <button
+                                                  onClick={() => submitContract(street.id, address.id)}
+                                                  disabled={addressProducts.length === 0}
+                                                  className={`w-full p-2 rounded-lg text-xs font-medium flex items-center justify-center gap-1 ${
+                                                    addressProducts.length === 0
+                                                      ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                                                      : 'bg-green-600 text-white hover:bg-green-700'
+                                                  }`}
+                                                >
+                                                  ✅ Vertrag senden ({addressProducts.length})
+                                                </button>
+                                              </div>
+                                            </>
+                                          )}
+                                        </div>
+
+                                        {/* Verlauf - Standardmäßig geöffnet wenn Status vorhanden */}
+                                        {!isEditing && address.statusHistory.length > 0 && expandedAddresses[address.id] !== false && (
+                                          <div className="bg-gray-50 p-2 border-t">
+                                            <h4 className="font-semibold text-xs text-gray-700 mb-1">Verlauf:</h4>
+                                            <div className="space-y-1">
+                                              {address.statusHistory.map((history, idx) => (
+                                                <div key={idx} className="text-xs flex items-center justify-between gap-2 text-gray-600 bg-white p-1.5 rounded">
+                                                  <div className="flex items-center gap-1 flex-1 min-w-0">
+                                                    <Clock size={10} />
+                                                    <span className="font-medium text-xs truncate">{formatTimestamp(history.timestamp)}</span>
+                                                    <span>→</span>
+                                                    <span className="font-semibold">{history.status}</span>
+                                                    {history.products && history.products.length > 0 && (
+                                                      <span className="text-green-600 truncate">({history.products.join(', ')})</span>
+                                                    )}
+                                                  </div>
+                                                  <button
+                                                    onClick={() => deleteStatusHistoryEntry(street.id, address.id, idx)}
+                                                    className="p-1 hover:bg-red-100 rounded text-red-600 flex-shrink-0"
+                                                  >
+                                                    <X size={12} />
+                                                  </button>
+                                                </div>
+                                              ))}
+                                            </div>
+                                          </div>
+                                        )}
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+          {!currentListData && lists.length === 0 && (
           <div className="bg-white p-8 rounded-lg shadow text-center">
             <MapPin size={48} className="mx-auto text-gray-400 mb-4" />
             <h3 className="text-xl font-semibold text-gray-700 mb-2">Noch keine Lauflisten</h3>
@@ -1156,8 +1576,9 @@ const removeProduct = (addressId, product) => {
             </button>
           </div>
         )}
+        </div>
       </div>
-    </div>
+    </>
   );
 };
 
