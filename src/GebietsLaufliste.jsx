@@ -761,7 +761,6 @@ const GebietsLaufliste = () => {
 
   <div class="section">
     <div class="section-title">STATUS</div>
-    <div class="info-line">✅ Verträge: <span class="highlight">${stats.vertrag}</span></div>
     <div class="info-line">🔵 NA: <span class="highlight">${stats.na}</span></div>
     <div class="info-line">❌ KI: <span class="highlight">${stats.ki}</span></div>
     <div class="info-line">⚠️ NM: <span class="highlight">${stats.nm}</span></div>
@@ -771,7 +770,7 @@ const GebietsLaufliste = () => {
   <div class="section">
     <div class="section-title">PRODUKTE VERKAUFT</div>
     <div class="info-line">📞 <span class="highlight">${stats.productKIP}x</span> KIP</div>
-    <div class="info-line">📡 <span class="highlight">${stats.productKAS}x</span>KAS</div>
+    <div class="info-line">📡 <span class="highlight">${stats.productKAS}x</span> KAS</div>
     <div class="info-line">📺 <span class="highlight">${stats.productDIGI}x</span> DIGI</div>
     <div class="info-line">🔗 <span class="highlight">${stats.productNET}x</span> NET</div>
     <div class="info-line">📱 <span class="highlight">${stats.productMOBILE}x</span> MOBILE</div>
@@ -780,9 +779,9 @@ const GebietsLaufliste = () => {
 
   <div class="section">
     <div class="section-title">GESAMT PUNKTE</div>
-    <div class="info-line">Gesamtpunktzahl: <span class="highlight" style="font-size: 18px;">${stats.productKIP + stats.productDIGI + stats.productNET + stats.productMOBILE}</span> Punkte</div>
+    <div class="info-line">Gesamt: <span class="highlight" style="font-size: 18px;">${stats.productKIP + stats.productDIGI + stats.productNET + stats.productMOBILE}</span> Punkte</div>
     <div class="info-line" style="font-size: 12px; color: #666; margin-top: 10px;">
-      (Gewertet: KIP + DIGI + NET + MOBILE = je 1 Punkt)
+      (Gewertet: KIP + DIGI + NET + MOBILE)
     </div>
   </div>
 
