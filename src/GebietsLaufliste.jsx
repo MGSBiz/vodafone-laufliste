@@ -192,19 +192,49 @@ const GebietsLaufliste = () => {
     }));
   };
 
-  const toggleProductSelection = (addressId, product) => {
-    setSelectedProducts(prev => {
-      const currentProducts = prev[addressId] || [];
+const toggleProductSelection = (addressId, product) => {
+  setSelectedProducts(prev => {
+    const currentProducts = prev[addressId] || [];
+    const count = currentProducts.filter(p => p === product).length;
+    
+    // Limits prüfen
+    if (product === 'MOBILE' && count >= 5) return prev;
+    if (product === 'NET' && count >= 2) return prev;
+    
+    // Andere Produkte: nur 1x
+    if (!['MOBILE', 'NET'].includes(product)) {
       const isSelected = currentProducts.includes(product);
-      
       return {
         ...prev,
         [addressId]: isSelected 
           ? currentProducts.filter(p => p !== product)
           : [...currentProducts, product]
       };
-    });
-  };
+    }
+    
+    // MOBILE/NET: Hinzufügen
+    return {
+      ...prev,
+      [addressId]: [...currentProducts, product]
+    };
+  });
+};
+
+const removeProduct = (addressId, product) => {
+  setSelectedProducts(prev => {
+    const currentProducts = prev[addressId] || [];
+    const index = currentProducts.indexOf(product);
+    if (index === -1) return prev;
+    
+    const newProducts = [...currentProducts];
+    newProducts.splice(index, 1);
+    
+    return {
+      ...prev,
+      [addressId]: newProducts
+    };
+  });
+};
 
   const submitContract = (streetId, addressId) => {
     const products = selectedProducts[addressId] || [];
@@ -1020,24 +1050,39 @@ const GebietsLaufliste = () => {
                                           </button>
                                         </div>
 
-                                        {/* Produkt-Auswahl Buttons */}
+{/* Produkt-Auswahl Buttons */}
                                         <div className="mb-2">
                                           <div className="text-xs font-medium text-gray-700 mb-1">Vertrag - Produkte wählen:</div>
                                           <div className="grid grid-cols-3 gap-1 mb-2">
-                                            {['KIP', 'KAS', 'DIGI', 'NET', 'MOBILE', 'UPSELL'].map(product => (
-                                              <button
-                                                key={product}
-                                                onClick={() => toggleProductSelection(address.id, product)}
-                                                className={`p-2 rounded-lg text-xs font-medium transition-all flex items-center justify-center gap-1 ${
-                                                  addressProducts.includes(product)
-                                                    ? 'bg-green-500 text-white'
-                                                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                                                }`}
-                                              >
-                                                {addressProducts.includes(product) && <Check size={12} />}
-                                                {product}
-                                              </button>
-                                            ))}
+                                            {['KIP', 'KAS', 'DIGI', 'NET', 'MOBILE', 'UPSELL'].map(product => {
+                                              const count = addressProducts.filter(p => p === product).length;
+                                              const isMulti = ['MOBILE', 'NET'].includes(product);
+                                              const maxCount = product === 'MOBILE' ? 5 : product === 'NET' ? 2 : 1;
+                                              
+                                              return (
+                                                <div key={product} className="flex gap-1">
+                                                  <button
+                                                    onClick={() => toggleProductSelection(address.id, product)}
+                                                    className={`flex-1 p-2 rounded-lg text-xs font-medium transition-all flex items-center justify-center gap-1 ${
+                                                      count > 0
+                                                        ? 'bg-green-500 text-white'
+                                                        : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                                                    }`}
+                                                  >
+                                                    {count > 0 && <Check size={12} />}
+                                                    {product} {count > 0 && isMulti && `(${count})`}
+                                                  </button>
+                                                  {isMulti && count > 0 && (
+                                                    <button
+                                                      onClick={() => removeProduct(address.id, product)}
+                                                      className="px-2 bg-red-500 text-white rounded-lg hover:bg-red-600 text-xs"
+                                                    >
+                                                      -
+                                                    </button>
+                                                  )}
+                                                </div>
+                                              );
+                                            })}
                                           </div>
                                           <button
                                             onClick={() => submitContract(street.id, address.id)}
@@ -1051,7 +1096,8 @@ const GebietsLaufliste = () => {
                                             ✅ Vertrag senden ({addressProducts.length})
                                           </button>
                                         </div>
-                                      </div>
+                                        </div>
+                                        
 
                                       {/* Verlauf */}
                                       {expandedAddresses[address.id] && address.statusHistory.length > 0 && (
