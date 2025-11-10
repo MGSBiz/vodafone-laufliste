@@ -8,36 +8,36 @@ function App() {
 
   return (
     <div className="App">
-      <div className="flex gap-2 md:gap-4 p-2 md:p-4 bg-gray-800 overflow-x-auto">
+      <div className="flex gap-4 p-4 bg-gray-800">
         <button
           onClick={() => setActiveApp('calculator')}
-          className={`px-4 md:px-6 py-2 md:py-3 rounded-lg font-semibold text-sm md:text-base whitespace-nowrap ${
+          className={`px-6 py-3 rounded-lg font-semibold ${
             activeApp === 'calculator' 
               ? 'bg-red-600 text-white' 
               : 'bg-gray-600 text-gray-200'
           }`}
         >
-          Pencil-Selling
+          Pencil-Selling Assistant
         </button>
         <button
           onClick={() => setActiveApp('laufliste')}
-          className={`px-4 md:px-6 py-2 md:py-3 rounded-lg font-semibold text-sm md:text-base whitespace-nowrap ${
+          className={`px-6 py-3 rounded-lg font-semibold ${
             activeApp === 'laufliste' 
               ? 'bg-blue-600 text-white' 
               : 'bg-gray-600 text-gray-200'
           }`}
         >
-          Laufliste
+          Gebiets-Laufliste
         </button>
-        <button
+                <button
           onClick={() => setActiveApp('kundendatenbank')}
-          className={`px-4 md:px-6 py-2 md:py-3 rounded-lg font-semibold text-sm md:text-base whitespace-nowrap ${
-            activeApp === 'kundendatenbank' 
-              ? 'bg-purple-600 text-white' 
+          className={`px-6 py-3 rounded-lg font-semibold ${
+            activeApp === 'laufliste' 
+              ? 'bg-blue-600 text-white' 
               : 'bg-gray-600 text-gray-200'
           }`}
         >
-          Kundendatenbank
+          Kunden
         </button>
       </div>
 
