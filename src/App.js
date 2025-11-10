@@ -32,7 +32,7 @@ function App() {
                 <button
           onClick={() => setActiveApp('kundendatenbank')}
           className={`px-6 py-3 rounded-lg font-semibold ${
-            activeApp === 'laufliste' 
+            activeApp === 'kundendatenbank' 
               ? 'bg-blue-600 text-white' 
               : 'bg-gray-600 text-gray-200'
           }`}
